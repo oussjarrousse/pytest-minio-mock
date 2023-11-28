@@ -1,0 +1,20 @@
+# Byte-compiled / optimized / DLL files
+*__pycache__
+
+# Mac OS X
+.DS_Store
+
+#pytest
+#pytest-cov
+.coverage
+
+#tox
+.tox
+
+# Virtual Environments
+virtual
+venv
+
+#setuptools
+*.egg-info/
+build
