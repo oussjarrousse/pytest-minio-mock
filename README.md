@@ -34,9 +34,10 @@ The `minio_mock` fixture will patch minio.Minio() thus providing you with a way 
 
 A brief description of the mocked methods and their behavior, like:
 
-`make_bucket(bucket_name, ...)` - Mocks bucket creation.
-`fput_object(bucket_name, object_name, file_path, ...)` - Mocks file upload.
-etc.
+- `make_bucket(bucket_name, ...)` - Mocks bucket creation.
+- `fput_object(bucket_name, object_name, file_path, ...)`
+- Mocks file upload.
+- ...
 
 ## Contributing
 Contributions to pytest-minio-mock are welcome! The Contributing Guide is still under construction.
