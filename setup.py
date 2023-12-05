@@ -5,11 +5,11 @@ setup(
     name="pytest-minio-mock",
     entry_points={
         "pytest11": [
-            "pytest_minio_mock = pytest_minio_mock",
+            "minio_mock = pytest_minio_mock",
         ],
     },    
     packages=find_packages(where="src"),    
-    package_dir={"": "src"},
+    package_dir={"": "pytest_minio_mock"},
     platforms="any",
     python_requires=">=3.6",
     install_requires=[
@@ -24,12 +24,10 @@ setup(
     author_email="oussama@jarrousse.org",
     description="A pytest plugin for mocking Minio S3 interactions",
     long_description=open("README.md").read(),
-    long_description_content_type="text/x-rst",
     keywords="pytest minio mock",
     extras_require={"dev": ["pre-commit", "tox"]},
     version="0.1.2",
     long_description_content_type="text/markdown",
-    url="https://github.com/oussjarrousse/pytest-minio-mock",
     classifiers=[
         "Framework :: Pytest",
         "Programming Language :: Python :: 3",
@@ -44,10 +42,10 @@ setup(
         "Programming Language :: Python :: 3 :: Only",
         "Topic :: Software Development :: Testing",
     ],
-    project_urls=[
+    project_urls={
         # "Documentation": "https://pytest-minio-mock.readthedocs.io/en/latest/",
         # "Changelog": "https://pytest-minio-mock.readthedocs.io/en/latest/changelog.html",
         "Source": "https://github.com/oussjarrousse/pytest-minio-mock/",
         "Tracker": "https://github.com/oussjarrousse/pytest-minio-mock/issues",
-    ]
+    }
 )
