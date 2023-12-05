@@ -2,32 +2,55 @@ from setuptools import setup, find_packages
 
 
 setup(
-    name='pytest-minio-mock',
-    version='0.1.0',
-    author='Oussama Jarrousse',
-    author_email='oussama@jarrousse.org',
-    description='A pytest plugin for mocking Minio S3 interactions',
-    long_description=open('README.md').read(),
-    long_description_content_type='text/markdown',
-    url='https://github.com/oussjarrousse/pytest-minio-mock',
-    packages=find_packages(),
-    classifiers=[
-        'Framework :: Pytest',
-        'Programming Language :: Python :: 3',
-        'License :: OSI Approved :: MIT License',
-        'Operating System :: OS Independent',
-        'Topic :: Software Development :: Testing',
-    ],
-    python_requires='>=3.6',
-    install_requires=[
-        'pytest>=5.0.0',
-        'minio',
-        'pytest-mock',
-        'validators'
-    ],
+    name="pytest-minio-mock",
     entry_points={
-        'pytest11': [
-            'minio_mock = pytest_minio_mock',
+        "pytest11": [
+            "pytest_minio_mock = pytest_minio_mock",
         ],
-    },
+    },    
+    packages=find_packages(where="src"),    
+    package_dir={"": "src"},
+    platforms="any",
+    python_requires=">=3.6",
+    install_requires=[
+        "pytest>=5.0.0",
+        "minio",
+        "pytest-mock",
+        "validators"
+    ],
+    url="https://github.com/oussjarrousse/pytest-minio-mock",
+    license="MIT",
+    author="Oussama Jarrousse",
+    author_email="oussama@jarrousse.org",
+    description="A pytest plugin for mocking Minio S3 interactions",
+    long_description=open("README.md").read(),
+    long_description_content_type="text/x-rst",
+    keywords="pytest minio mock",
+    extras_require={"dev": ["pre-commit", "tox"]},
+    version="0.1.1",
+    
+    
+    long_description_content_type="text/markdown",
+    url="https://github.com/oussjarrousse/pytest-minio-mock",
+
+    classifiers=[
+        "Framework :: Pytest",
+        "Programming Language :: Python :: 3",
+        "License :: OSI Approved :: MIT License",
+        "Operating System :: OS Independent",
+        "Intended Audience :: Developers",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3 :: Only",
+        "Topic :: Software Development :: Testing",
+    ],
+    project_urls=[
+        # "Documentation": "https://pytest-minio-mock.readthedocs.io/en/latest/",
+        # "Changelog": "https://pytest-minio-mock.readthedocs.io/en/latest/changelog.html",
+        "Source": "https://github.com/oussjarrousse/pytest-minio-mock/",
+        "Tracker": "https://github.com/oussjarrousse/pytest-minio-mock/issues",
+    ]
 )

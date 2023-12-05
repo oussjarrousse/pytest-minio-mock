@@ -1,5 +1,5 @@
 import pytest
-from pytest_minio_mock.minio_mock import MockMinioClient
+from src.pytest_minio_mock.minio_mock import MockMinioClient
 from minio import Minio
 
 @pytest.fixture
