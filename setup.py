@@ -27,12 +27,9 @@ setup(
     long_description_content_type="text/x-rst",
     keywords="pytest minio mock",
     extras_require={"dev": ["pre-commit", "tox"]},
-    version="0.1.1",
-    
-    
+    version="0.1.2",
     long_description_content_type="text/markdown",
     url="https://github.com/oussjarrousse/pytest-minio-mock",
-
     classifiers=[
         "Framework :: Pytest",
         "Programming Language :: Python :: 3",

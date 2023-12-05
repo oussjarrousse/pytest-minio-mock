@@ -7,6 +7,8 @@ import io
 from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
 
+import pytest
+
 class MockMinioClient:
     buckets = {}
 
@@ -113,3 +115,18 @@ class MockMinioClient:
             logging.error("remove_object(): Exception")
             logging.error(self.buckets)
             raise
+
+@pytest.fixture
+def minio_mock(mocker):
+    def minio_mock_init(
+        cls,
+        *args,
+        **kwargs,
+    ):
+        return MockMinioClient(
+            *args,
+            **kwargs
+        )
+
+    p = mocker.patch.object(Minio, "__new__", new=minio_mock_init)
+    yield

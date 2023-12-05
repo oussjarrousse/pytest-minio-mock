@@ -17,6 +17,6 @@ venv
 
 #setuptools
 *.egg-info/
+*.egg
 build
 dist
-
