@@ -5,11 +5,10 @@ setup(
     name="pytest-minio-mock",
     entry_points={
         "pytest11": [
-            "minio_mock = pytest_minio_mock",
+            "pytest_minio_mock = pytest_minio_mock",
         ],
     },    
-    packages=find_packages(where="src"),    
-    package_dir={"": "pytest_minio_mock"},
+    packages=find_packages(),
     platforms="any",
     python_requires=">=3.6",
     install_requires=[

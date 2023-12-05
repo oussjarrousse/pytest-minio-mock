@@ -1,1 +1,1 @@
-pytest_plugins = 'pytester'
+from pytest_minio_mock.plugin import minio_mock
