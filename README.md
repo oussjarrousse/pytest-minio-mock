@@ -20,6 +20,18 @@ pip install pytest-minio-mock
 To use the minio_mock fixture in your pytest tests, simply include it as a parameter in your test functions. Then use minio.Minio() as usual Here's an example:
 
 ```python
+def foo():
+    try:
+        minio_client = minio.Minio(
+            endpoint=S3_URI,
+            access_key=S3_ACCESS_KEY,
+            secret_key=S3_SECRET_KEY,
+            region=S3_REGION
+        )
+        minio_client.make_bucket("buckets")
+    except Exception as e:
+        logging.error(e)
+
 def test_file_upload(minio_mock):
     # Calling function foo that involves using minio.Minio()
     assert foo()
