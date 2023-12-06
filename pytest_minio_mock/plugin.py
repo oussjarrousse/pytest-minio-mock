@@ -128,5 +128,5 @@ def minio_mock(mocker):
             **kwargs
         )
 
-    p = mocker.patch.object(Minio, "__new__", new=minio_mock_init)
-    yield
+    patched = mocker.patch.object(Minio, "__new__", new=minio_mock_init)
+    yield patched
