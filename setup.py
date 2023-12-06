@@ -1,4 +1,5 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages
+from setuptools import setup
 
 
 setup(
@@ -11,12 +12,7 @@ setup(
     packages=find_packages(),
     platforms="any",
     python_requires=">=3.6",
-    install_requires=[
-        "pytest>=5.0.0",
-        "minio",
-        "pytest-mock",
-        "validators"
-    ],
+    install_requires=["pytest>=5.0.0", "minio", "pytest-mock", "validators"],
     url="https://github.com/oussjarrousse/pytest-minio-mock",
     license="MIT",
     author="Oussama Jarrousse",
@@ -46,5 +42,5 @@ setup(
         # "Changelog": "https://pytest-minio-mock.readthedocs.io/en/latest/changelog.html",
         "Source": "https://github.com/oussjarrousse/pytest-minio-mock/",
         "Tracker": "https://github.com/oussjarrousse/pytest-minio-mock/issues",
-    }
+    },
 )
