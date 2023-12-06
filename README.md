@@ -35,7 +35,7 @@ def foo():
 def test_file_upload(minio_mock):
     # Calling function foo that involves using minio.Minio()
     assert foo()
-    
+
 ```
 
 The `minio_mock` fixture will patch minio.Minio() thus providing you with a way to test your code around the Minio client easily.

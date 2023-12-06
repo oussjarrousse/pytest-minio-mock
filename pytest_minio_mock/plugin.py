@@ -1,11 +1,14 @@
+import datetime
+import io
 import logging
+
+import pytest
+import validators
 from minio import Minio
 from minio.error import S3Error
-import datetime
-import validators
-import io
 from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
+
 
 class MockMinioClient:
     buckets = {}
@@ -33,7 +36,9 @@ class MockMinioClient:
     def _health_check(self):
         if not self._base_url:
             raise Exception("base_url is empty")
-        if not validators.hostname(self._base_url) and not validators.url(self._base_url):
+        if not validators.hostname(self._base_url) and not validators.url(
+            self._base_url
+        ):
             raise Exception(f"base_url {self._base_url} is not valid")
 
     def fput_object(self, bucket_name, object_name, file_path, *args, **kwargs):
@@ -113,3 +118,16 @@ class MockMinioClient:
             logging.error("remove_object(): Exception")
             logging.error(self.buckets)
             raise
+
+
+@pytest.fixture
+def minio_mock(mocker):
+    def minio_mock_init(
+        cls,
+        *args,
+        **kwargs,
+    ):
+        return MockMinioClient(*args, **kwargs)
+
+    patched = mocker.patch.object(Minio, "__new__", new=minio_mock_init)
+    yield patched

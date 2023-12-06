@@ -1,0 +1,54 @@
+---
+repos:
+    - repo: https://github.com/pre-commit/pre-commit-hooks
+      rev: v4.5.0
+      hooks:
+          # formatting
+          - id: end-of-file-fixer
+          - id: trailing-whitespace
+          - id: check-toml
+          - id: check-json
+          # versionning issues
+          - id: check-merge-conflict
+          - id: no-commit-to-branch
+            args: [--branch, main]
+          # structure
+          - id: check-symlinks
+          - id: destroyed-symlinks
+          # Security
+          - id: detect-private-key
+
+    - repo: https://github.com/psf/black
+      rev: 23.11.0
+      hooks:
+          - id: black
+            language_version: python3.11
+
+    - repo: https://github.com/asottile/reorder_python_imports
+      rev: v3.12.0
+      hooks:
+          - id: reorder-python-imports
+
+    - repo: https://github.com/adrienverge/yamllint.git
+      rev: v1.33.0  # or higher tag
+      hooks:
+          - id: yamllint
+            args: [--format, parsable, --strict]
+
+    - repo: https://github.com/jumanjihouse/pre-commit-hook-yamlfmt
+      rev: 0.2.3  # or other specific tag
+      hooks:
+          - id: yamlfmt
+#
+
+# 1- Create an access token with api scope.
+# 2- Set access token value in an environment variable named GITLAB_TOKEN or
+# GITLABCI_LINT_TOKEN.
+# 3- Add the projectId for your gitlab project as a command line argument, or
+# set it in the config file.
+# 4- Ensure the virtualenv Python version is 3.8 or later.
+#    - repo: https://github.com/bjd2385/pre-commit-gitlabci-lint
+#      rev: v1.3.0
+#      hooks:
+#          - id: gitlabci-lint
+# args: [-b, 'https://custom.gitlab.host.com', '-p', '12345678']
