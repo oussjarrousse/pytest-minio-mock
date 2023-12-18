@@ -47,14 +47,26 @@ class MockMinioClient:
         self._health_check()
         if not self.bucket_exists(bucket_name):
             # TODO: Check the actual behavior of fput_object
-            raise S3Error("bucket does not exist")
+            raise S3Error(
+                message="bucket does not exist",
+                resource=bucket_name,
+                request_id="mock-request-id",
+                host_id="mock-host-id",
+                response="Mock response",
+            )
         self.buckets[bucket_name][object_name] = file_path
         return "Upload successful"
 
     def put_object(self, bucket_name, object_name, data, *args, **kwargs):
         self._health_check()
         if not self.bucket_exists(bucket_name):
-            raise S3Error("bucket does not exist")
+            raise S3Error(
+                message="bucket does not exist",
+                resource=bucket_name,
+                request_id="mock-request-id",
+                host_id="mock-host-id",
+                response="Mock response",
+            )
         self.buckets[bucket_name][object_name] = data
         return "Upload successful"
 
@@ -103,7 +115,13 @@ class MockMinioClient:
     def list_objects(self, bucket_name, prefix="", recursive=False, start_after=""):
         # Mock implementation
         if bucket_name not in self.buckets:
-            raise S3Error("no suck bucket")
+            raise S3Error(
+                message="no such bucket",
+                resource=bucket_name,
+                request_id="mock-request-id",
+                host_id="mock-host-id",
+                response="Mock response",
+            )
 
         bucket = self.buckets[bucket_name]
         for obj_name in bucket:
