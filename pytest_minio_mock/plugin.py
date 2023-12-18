@@ -5,14 +5,13 @@ import logging
 import pytest
 import validators
 from minio import Minio
+from minio.datatypes import Bucket
 from minio.error import S3Error
 from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
 
 
 class MockMinioClient:
-    buckets = {}
-
     def __init__(
         self,
         endpoint,
@@ -32,6 +31,7 @@ class MockMinioClient:
         self._region = region
         self._http_client = http_client
         self._credentials = credentials
+        self.buckets = {}
 
     def _health_check(self):
         if not self._base_url:
@@ -74,7 +74,10 @@ class MockMinioClient:
     def list_buckets(self):
         try:
             self._health_check()
-            return self.buckets
+            buckets_list = []
+            for bucket_name in self.buckets.keys():
+                buckets_list.append(bucket_name)
+            return buckets_list
         except Exception as e:
             raise e
 
@@ -90,8 +93,25 @@ class MockMinioClient:
 
     def make_bucket(self, bucket_name, location=None, object_lock=False):
         self._health_check()
-        self.buckets[bucket_name] = {}
+        self.buckets[bucket_name] = {
+            #  "__META__":
+            # {"name":bucket_name,
+            # "creation_date":datetime.datetime.utcnow()}
+        }
         return True
+
+    def list_objects(self, bucket_name, prefix="", recursive=False, start_after=""):
+        # Mock implementation
+        if bucket_name not in self.buckets:
+            raise S3Error("no suck bucket")
+
+        bucket = self.buckets[bucket_name]
+        for obj_name in bucket:
+            if obj_name.startswith(prefix) and (
+                start_after == "" or obj_name > start_after
+            ):
+                # Here, just returning object name for simplicity
+                yield obj_name
 
     def get_object(self, bucket_name, object_name):
         self._health_check()
