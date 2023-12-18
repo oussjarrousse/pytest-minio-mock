@@ -50,9 +50,12 @@ class MockMinioClient:
             raise S3Error(
                 message="bucket does not exist",
                 resource=bucket_name,
-                request_id="mock-request-id",
-                host_id="mock-host-id",
-                response="Mock response",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=404,
+                bucket_name=bucket_name,
+                object_name=None,
             )
         self.buckets[bucket_name][object_name] = file_path
         return "Upload successful"
@@ -63,9 +66,12 @@ class MockMinioClient:
             raise S3Error(
                 message="bucket does not exist",
                 resource=bucket_name,
-                request_id="mock-request-id",
-                host_id="mock-host-id",
-                response="Mock response",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=404,
+                bucket_name=bucket_name,
+                object_name=None,
             )
         self.buckets[bucket_name][object_name] = data
         return "Upload successful"
@@ -116,20 +122,24 @@ class MockMinioClient:
         # Mock implementation
         if bucket_name not in self.buckets:
             raise S3Error(
-                message="no such bucket",
+                message="bucket does not exist",
                 resource=bucket_name,
-                request_id="mock-request-id",
-                host_id="mock-host-id",
-                response="Mock response",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=404,
+                bucket_name=bucket_name,
+                object_name=None,
             )
-
         bucket = self.buckets[bucket_name]
+        bucket_objects = []
         for obj_name in bucket:
             if obj_name.startswith(prefix) and (
                 start_after == "" or obj_name > start_after
             ):
                 # Here, just returning object name for simplicity
-                yield obj_name
+                bucket_objects.append(obj_name)
+        return bucket_objects
 
     def get_object(self, bucket_name, object_name):
         self._health_check()

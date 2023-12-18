@@ -1,6 +1,7 @@
 import pytest
 import validators
 from minio import Minio
+from minio.error import S3Error
 
 
 @pytest.mark.UNIT
@@ -85,3 +86,16 @@ def test_list_buckets(minio_mock):
     client.make_bucket(bucket_name)
     buckets = client.list_buckets()
     assert len(buckets) == n + 1
+
+
+@pytest.mark.REGRESSION
+@pytst.mark.UNIT
+@pytst.mark.API
+def test_list_objects(minio_mock):
+    client = Minio("http://local.host:9000")
+    bucket_name = "new-bucket"
+    client.make_bucket(bucket_name)
+    objects = client.list_objects(bucket_name)
+    assert len(objects) == 0
+    with pytest.raises(S3Error):
+        objects = client.list_objects("no-such-bucket")
