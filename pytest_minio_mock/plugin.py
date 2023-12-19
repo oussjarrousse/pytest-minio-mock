@@ -11,6 +11,69 @@ from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
 
 
+class Server:
+    def __init__(self, endpoint):
+        self._base_url = endpoint
+        self._buckets = {}
+
+    @property
+    def base_url():
+        return self._base_url
+
+    @property
+    def bucket():
+        return self._buckets
+
+    def __getitem__(self, item):
+        return self._buckets[item]
+
+    def __setitem__(self, key, value):
+        self._buckets[key] = value
+
+    def __len__(self):
+        return len(self._buckets)
+
+    def keys(self):
+        return self._buckets.keys()
+
+    def values(self):
+        return self._buckets.values()
+
+    def items(self):
+        return self._buckets.items()
+
+    def get(self, key, default=None):
+        return self._buckets.get(key, default)
+
+    def pop(self, key, default=None):
+        return self._buckets.pop(key, default) if key in self._buckets else default
+
+    def update(self, other):
+        self._buckets.update(other)
+
+    def __contains__(self, item):
+        return item in self._buckets
+
+    def __delitem__(self, key):
+        del self._buckets[key]
+
+    def __iter__(self):
+        return iter(self._buckets)
+
+
+class Servers:
+    def __init__(self):
+        self.servers = {}
+
+    def connect(self, endpoint):
+        if endpoint not in self.servers:
+            self.servers[endpoint] = Server(endpoint)
+        return self.servers[endpoint]
+
+    def reset(self):
+        self.servers = {}
+
+
 class MockMinioClient:
     def __init__(
         self,
@@ -32,6 +95,9 @@ class MockMinioClient:
         self._http_client = http_client
         self._credentials = credentials
         self.buckets = {}
+
+    def _connect(self, servers):
+        self.buckets = servers.connect(self._base_url)
 
     def _health_check(self):
         if not self._base_url:
@@ -169,13 +235,20 @@ class MockMinioClient:
 
 
 @pytest.fixture
-def minio_mock(mocker):
+def minio_mock_servers():
+    yield Servers()
+
+
+@pytest.fixture
+def minio_mock(mocker, minio_mock_servers):
     def minio_mock_init(
         cls,
         *args,
         **kwargs,
     ):
-        return MockMinioClient(*args, **kwargs)
+        client = MockMinioClient(*args, **kwargs)
+        client._connect(minio_mock_servers)
+        return client
 
     patched = mocker.patch.object(Minio, "__new__", new=minio_mock_init)
     yield patched

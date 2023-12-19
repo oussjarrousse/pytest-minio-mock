@@ -89,8 +89,8 @@ def test_list_buckets(minio_mock):
 
 
 @pytest.mark.REGRESSION
-@pytst.mark.UNIT
-@pytst.mark.API
+@pytest.mark.UNIT
+@pytest.mark.API
 def test_list_objects(minio_mock):
     client = Minio("http://local.host:9000")
     bucket_name = "new-bucket"
@@ -99,3 +99,15 @@ def test_list_objects(minio_mock):
     assert len(objects) == 0
     with pytest.raises(S3Error):
         objects = client.list_objects("no-such-bucket")
+
+
+@pytest.mark.REGRESSION
+def test_connecting_to_the_same_endpoint(minio_mock):
+    client_1 = Minio("http://local.host:9000")
+    client_1_buckets = ["bucket-1", "bucket-2", "bucket-3"]
+    for bucket in client_1_buckets:
+        client_1.make_bucket(bucket)
+
+    client_2 = Minio("http://local.host:9000")
+    client_2_buckets = client_2.list_buckets()
+    assert client_2_buckets == client_1_buckets
