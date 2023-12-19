@@ -1,6 +1,7 @@
 import datetime
 import io
 import logging
+import os
 
 import pytest
 import validators
@@ -17,11 +18,11 @@ class Server:
         self._buckets = {}
 
     @property
-    def base_url():
+    def base_url(self):
         return self._base_url
 
     @property
-    def bucket():
+    def bucket(self):
         return self._buckets
 
     def __getitem__(self, item):
@@ -107,7 +108,59 @@ class MockMinioClient:
         ):
             raise Exception(f"base_url {self._base_url} is not valid")
 
-    def fput_object(self, bucket_name, object_name, file_path, *args, **kwargs):
+    def fget_object(
+        self,
+        bucket_name,
+        object_name,
+        file_path,
+        request_headers=None,
+        sse=None,
+        version_id=None,
+        extra_query_params=None,
+    ):
+        pass
+
+    def get_object(
+        self,
+        bucket_name,
+        object_name,
+        offset: int = 0,
+        length: int = 0,
+        request_headers=None,
+        ssec=None,
+        version_id=None,
+        extra_query_params=None,
+    ):
+        self._health_check()
+        # do something to self.buckets[bucket_name] = {}
+        data = self.buckets[bucket_name][object_name]
+        # Create a buffer containing the data
+        if isinstance(data, io.BytesIO):
+            body = copy.deepcopy(data)
+        if isinstance(data, bytes):
+            body = data
+        else:
+            body = io.BytesIO(data.encode("utf-8"))
+
+        conn = HTTPConnection("localhost")
+        response = HTTPResponse(body=body, preload_content=False, connection=conn)
+        return response
+
+    def fput_object(
+        self,
+        bucket_name: str,
+        object_name: str,
+        file_path: str,
+        content_type: str = "application/octet-stream",
+        metadata=None,
+        sse=None,
+        progress=None,
+        part_size: int = 0,
+        # num_parallel_uploads: int = 3,
+        # tags = None,
+        # retention = None,
+        # legal_hold: bool = False,
+    ):
         # Mock behavior for fput_object
         # if bucken_name does not exists raise some error
         self._health_check()
@@ -123,10 +176,36 @@ class MockMinioClient:
                 bucket_name=bucket_name,
                 object_name=None,
             )
-        self.buckets[bucket_name][object_name] = file_path
-        return "Upload successful"
+        file_size = os.stat(file_path).st_size
+        with open(file_path, "rb") as file_data:
+            return self.put_object(
+                bucket_name,
+                object_name,
+                file_data,
+                length=file_size,
+                content_type="application/octet-stream",
+                metadata=metadata,
+                sse=sse,
+                progress=progress,
+                part_size=part_size,
+            )
 
-    def put_object(self, bucket_name, object_name, data, *args, **kwargs):
+    def put_object(
+        self,
+        bucket_name: str,
+        object_name: str,
+        data,
+        length: int,
+        content_type: str = "application/octet-stream",
+        metadata=None,
+        sse=None,
+        progress=None,
+        part_size: int = 0
+        # num_parallel_uploads: int = 3,
+        # tags = None,
+        # retention = None,
+        # legal_hold: bool = False
+    ):
         self._health_check()
         if not self.bucket_exists(bucket_name):
             raise S3Error(
@@ -206,22 +285,6 @@ class MockMinioClient:
                 # Here, just returning object name for simplicity
                 bucket_objects.append(obj_name)
         return bucket_objects
-
-    def get_object(self, bucket_name, object_name):
-        self._health_check()
-        # do something to self.buckets[bucket_name] = {}
-        data = self.buckets[bucket_name][object_name]
-        # Create a buffer containing the data
-        if isinstance(data, io.BytesIO):
-            body = copy.deepcopy(data)
-        if isinstance(data, bytes):
-            body = data
-        else:
-            body = io.BytesIO(data.encode("utf-8"))
-
-        conn = HTTPConnection("localhost")
-        response = HTTPResponse(body=body, preload_content=False, connection=conn)
-        return response
 
     def remove_object(self, bucket_name, object_name):
         self._health_check()

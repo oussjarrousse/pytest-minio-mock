@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 import validators
 from minio import Minio
@@ -18,7 +20,7 @@ def test_make_bucket(minio_mock):
 def test_adding_and_removing_objects(minio_mock):
     bucket_name = "test-bucket"
     object_name = "test-object"
-    file_path = "fixtures/maya.jpeg"
+    file_path = "tests/fixtures/maya.jpeg"
 
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
@@ -39,10 +41,10 @@ def test_file_download(minio_mock):
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_content = b"Test file content"
-
+    length = sys.getsizeof(file_content)
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
-    client.put_object(bucket_name, object_name, file_content)
+    client.put_object(bucket_name, object_name, file_content, length)
 
     response = client.get_object(bucket_name, object_name)
     downloaded_content = response.data
@@ -66,7 +68,7 @@ def test_bucket_exists(minio_mock):
 def test_get_presigned_url(minio_mock):
     bucket_name = "test-bucket"
     object_name = "test-object"
-    file_path = "fixtures/maya.jpeg"
+    file_path = "tests/fixtures/maya.jpeg"
 
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
