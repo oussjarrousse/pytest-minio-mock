@@ -12,6 +12,24 @@ from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
 
 
+class Object:
+    def __init__(self, object_name, data):
+        self._object_name = object_name
+        self._data = data
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, value):
+        self._data = value
+
+    @property
+    def object_name(self):
+        return self._object_name
+
+
 class Server:
     def __init__(self, endpoint):
         self._base_url = endpoint
@@ -118,7 +136,9 @@ class MockMinioClient:
         version_id=None,
         extra_query_params=None,
     ):
-        pass
+        object = self.get_object(bucket_name, object_name)
+        with open(file_part_path, "wb") as f:
+            f.write(object.data)
 
     def get_object(
         self,
@@ -133,7 +153,8 @@ class MockMinioClient:
     ):
         self._health_check()
         # do something to self.buckets[bucket_name] = {}
-        data = self.buckets[bucket_name][object_name]
+        the_object = self.buckets[bucket_name][object_name]
+        data = the_object.data
         # Create a buffer containing the data
         if isinstance(data, io.BytesIO):
             body = copy.deepcopy(data)
@@ -218,7 +239,9 @@ class MockMinioClient:
                 bucket_name=bucket_name,
                 object_name=None,
             )
-        self.buckets[bucket_name][object_name] = data
+        self.buckets[bucket_name][object_name] = Object(
+            object_name=object_name, data=data
+        )
         return "Upload successful"
 
     def get_presigned_url(
