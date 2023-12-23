@@ -77,6 +77,32 @@ def test_get_presigned_url(minio_mock):
     url = client.get_presigned_url("GET", bucket_name, object_name)
     assert validators.url(url)
 
+@pytest.mark.UNIT
+@pytest.mark.API
+def test_presigned_put_url(minio_mock):
+    bucket_name = "test-bucket"
+    object_name = "test-object"
+    file_path = "tests/fixtures/maya.jpeg"
+
+    client = Minio("http://local.host:9000")
+    client.make_bucket(bucket_name)
+    client.fput_object(bucket_name, object_name, file_path)
+    url = client.presigned_put_object(bucket_name, object_name)
+    assert validators.url(url)
+
+@pytest.mark.UNIT
+@pytest.mark.API
+def test_presigned_get_url(minio_mock):
+    bucket_name = "test-bucket"
+    object_name = "test-object"
+    file_path = "tests/fixtures/maya.jpeg"
+
+    client = Minio("http://local.host:9000")
+    client.make_bucket(bucket_name)
+    client.fput_object(bucket_name, object_name, file_path)
+    url = client.presigned_get_object(bucket_name, object_name)
+    assert validators.url(url)
+
 
 @pytest.mark.UNIT
 @pytest.mark.API
