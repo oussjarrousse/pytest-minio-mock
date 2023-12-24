@@ -256,6 +256,28 @@ class MockMinioClient:
         extra_query_params=None,
     ):
         return "{}/{}/{}".format(self._base_url, bucket_name, object_name)
+    
+    def presigned_put_object(self, bucket_name, object_name,
+                             expires=datetime.timedelta(days=7)):
+        return self.get_presigned_url("PUT", bucket_name, object_name, expires)
+
+    def presigned_get_object(self, bucket_name, object_name,
+                             expires=datetime.timedelta(days=7),
+                             response_headers=None,
+                             request_date=None,
+                             version_id=None,
+                             extra_query_params=None):
+        
+        return self.get_presigned_url(
+            "GET",
+            bucket_name,
+            object_name,
+            expires,
+            response_headers=response_headers,
+            request_date=request_date,
+            version_id=version_id,
+            extra_query_params=extra_query_params,
+        )
 
     def list_buckets(self):
         try:
