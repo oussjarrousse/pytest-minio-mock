@@ -42,9 +42,11 @@ The `minio_mock` fixture will patch newly created minio.Minio() thus providing y
 
 At the moment, instances of minio.Minio() created before loading the minio_mock fixture code will not be patched. This might be an issue if one or more of the fixtures you are using in your tests that preceeds `minio_mock` in the parameters list of the test function, initiates instances of minio.Minio() that you want to test. As a workaround make sure that minio_mock is the first fixture in the list of arguments of function where minio_mock is needed. Example:
 
-```
+```python
 @pytest.fixture()
 def system_under_test(minio_mock: MockMinioClient, storage_provider_stub: StorageProvider):
+    # your code here
+    pass
 ```
 
 ## API
