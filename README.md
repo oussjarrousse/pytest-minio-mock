@@ -1,5 +1,9 @@
 # pytest-minio-mock
 
+### Pip Stats
+[![PyPI version](https://badge.fury.io/py/pytest-minio-mock.svg)](https://badge.fury.io/py/pytest-minio-mock)
+[![Downloads](https://static.pepy.tech/badge/pytest-minio-mock)](https://pepy.tech/project/pytest-minio-mock)
+
 ## Overview
 `pytest-minio-mock` is a pytest plugin designed to simplify testing of applications that interact with Minio the code  S3 compatible object storage system. It is not designed to test the correnction to the minio server. It provides a fixture that mocks the `minio.Minio` class, allowing for easy testing of Minio interactions without the need for a real Minio server.
 
