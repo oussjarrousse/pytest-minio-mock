@@ -9,7 +9,7 @@ setup(
             "pytest_minio_mock = pytest_minio_mock.plugin",
         ],
     },
-    packages=find_packages(),
+    packages=find_packages(exclude=("tests",)),
     platforms="any",
     python_requires=">=3.6",
     install_requires=["pytest>=5.0.0", "minio", "pytest-mock", "validators"],
