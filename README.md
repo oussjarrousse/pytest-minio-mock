@@ -32,13 +32,22 @@ def foo():
             secret_key=S3_SECRET_KEY,
             region=S3_REGION
         )
-        minio_client.make_bucket("buckets")
+        return minio_client.make_bucket("buckets")
     except Exception as e:
         logging.error(e)
+
 
 def test_file_upload(minio_mock):
     # Calling function foo that involves using minio.Minio()
     assert foo()
+    minio_client = minio.Minio(
+            endpoint=S3_URI,
+            access_key=S3_ACCESS_KEY,
+            secret_key=S3_SECRET_KEY,
+            region=S3_REGION
+        )
+    buckets = minio.list_buckets()
+    assert len(buckets)==1
 
 ```
 
