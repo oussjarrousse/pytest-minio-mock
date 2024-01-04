@@ -27,7 +27,7 @@ repos:
             entry: pylint
             language: system
             types: [python]
-            args: [-rn, -sn, --exit-zero, '--fail-on=F,E']
+            args: [-rn, --exit-zero, '--fail-on=F,E']
 
     - repo: https://github.com/adrienverge/yamllint.git
       rev: v1.33.0  # or higher tag
