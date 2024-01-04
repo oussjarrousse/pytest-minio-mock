@@ -1,1 +1,3 @@
 tox
+pylint
+pylint-pytest
