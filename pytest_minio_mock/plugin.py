@@ -24,6 +24,7 @@ import datetime
 import io
 import logging
 import os
+from collections import namedtuple
 
 import pytest
 import validators
@@ -31,6 +32,10 @@ from minio import Minio
 from minio.error import S3Error
 from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
+
+
+# Define a simple class or named tuple to hold object info
+ObjectInfo = namedtuple("ObjectInfo", ["object_name"])
 
 
 class MockMinioObject:
@@ -630,14 +635,29 @@ class MockMinioClient:
                 bucket_name=bucket_name,
                 object_name=None,
             )
+
+        # Initialization
         bucket = self.buckets[bucket_name]
         bucket_objects = []
-        for obj_name in bucket:
+        seen_prefixes = set()
+
+        for obj_name in bucket.keys():
             if obj_name.startswith(prefix) and (
                 start_after == "" or obj_name > start_after
             ):
-                # Here, just returning object name for simplicity
-                bucket_objects.append(obj_name)
+                # Handle non-recursive listing by identifying and adding unique directory names
+                if not recursive:
+                    sub_path = obj_name[len(prefix) :].strip("/")
+                    dir_end_idx = sub_path.find("/")
+                    if dir_end_idx != -1:
+                        dir_name = prefix + sub_path[: dir_end_idx + 1]
+                        if dir_name not in seen_prefixes:
+                            seen_prefixes.add(dir_name)
+                            bucket_objects.append(ObjectInfo(object_name=dir_name))
+                        continue  # Skip further processing to prevent adding the full object path
+                # Directly add the object for recursive listing or if it's a file in the current directory
+                bucket_objects.append(ObjectInfo(object_name=obj_name))
+
         return bucket_objects
 
     def remove_object(self, bucket_name, object_name):

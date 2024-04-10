@@ -77,6 +77,7 @@ def test_get_presigned_url(minio_mock):
     url = client.get_presigned_url("GET", bucket_name, object_name)
     assert validators.url(url)
 
+
 @pytest.mark.UNIT
 @pytest.mark.API
 def test_presigned_put_url(minio_mock):
@@ -89,6 +90,7 @@ def test_presigned_put_url(minio_mock):
     client.fput_object(bucket_name, object_name, file_path)
     url = client.presigned_put_object(bucket_name, object_name)
     assert validators.url(url)
+
 
 @pytest.mark.UNIT
 @pytest.mark.API
@@ -127,6 +129,43 @@ def test_list_objects(minio_mock):
     assert len(objects) == 0
     with pytest.raises(S3Error):
         objects = client.list_objects("no-such-bucket")
+
+    client.put_object(bucket_name, "a/b/c/object1", data=b"object1 data", length=12)
+    client.put_object(bucket_name, "a/b/object2", data=b"object2 data", length=12)
+    client.put_object(bucket_name, "a/object3", data=b"object3 data", length=11)
+    client.put_object(bucket_name, "object4", data=b"object4 data", length=11)
+
+    # Test recursive listing
+    objects_recursive = client.list_objects(bucket_name, prefix="a/", recursive=True)
+    assert len(objects_recursive) == 3, "Expected 3 objects under 'a/' with recursion"
+    # Check that all expected paths are returned
+    assert set(obj.object_name for obj in objects_recursive) == {
+        "a/b/c/object1",
+        "a/b/object2",
+        "a/object3",
+    }
+
+    # Test non-recursive listing
+    objects_non_recursive = client.list_objects(
+        bucket_name, prefix="a/", recursive=False
+    )
+    assert (
+        len(objects_non_recursive) == 2
+    ), "Expected 1 object under 'a/' without recursion"
+    # Check that the correct path is returned
+    assert set(obj.object_name for obj in objects_non_recursive) == {
+        "a/object3",
+        "a/b/",
+    }
+
+    print(objects_non_recursive)
+
+    # Test listing at the bucket root
+    objects_root = client.list_objects(bucket_name, recursive=False)
+    print(objects_root)
+    assert len(objects_root) == 2, "Expected 2 objects at the root"
+    # Check that the correct paths are returned
+    assert set(obj.object_name for obj in objects_root) == {"a/", "object4"}
 
 
 @pytest.mark.REGRESSION
