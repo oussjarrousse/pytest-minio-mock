@@ -24,10 +24,12 @@ import datetime
 import io
 import logging
 import os
+from pathlib import Path
 
 import pytest
 import validators
 from minio import Minio
+from minio.datatypes import Object
 from minio.error import S3Error
 from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
@@ -631,14 +633,24 @@ class MockMinioClient:
                 object_name=None,
             )
         bucket = self.buckets[bucket_name]
-        bucket_objects = []
+        prefix = prefix.strip("/") + "/"
+        iterated_dirs = set()  # keep track over already iterated directories.
         for obj_name in bucket:
             if obj_name.startswith(prefix) and (
                 start_after == "" or obj_name > start_after
             ):
-                # Here, just returning object name for simplicity
-                bucket_objects.append(obj_name)
-        return bucket_objects
+                if not recursive and "/" in obj_name.replace(prefix, ""):
+                    obj_name = Path(obj_name.replace(prefix, ""))
+                    obj_name = prefix + obj_name.parts[0]
+                    if obj_name in iterated_dirs:
+                        continue
+                    else:
+                        iterated_dirs.add(obj_name)
+                    obj = Object(bucket_name=bucket_name, object_name=obj_name)
+                    # obj.is_dir = True  Can not be set like this unfortunately. Maybe we have to moke Object as well.
+                    yield obj
+                else:
+                    yield Object(bucket_name=bucket_name, object_name=obj_name)
 
     def remove_object(self, bucket_name, object_name):
         """
