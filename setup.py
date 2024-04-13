@@ -11,7 +11,7 @@ setup(
     },
     packages=find_packages(exclude=("tests",)),
     platforms="any",
-    python_requires=">=3.6",
+    python_requires=">=3.8",
     install_requires=["pytest>=5.0.0", "minio", "pytest-mock", "validators"],
     url="https://github.com/oussjarrousse/pytest-minio-mock",
     license="MIT",
