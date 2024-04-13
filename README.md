@@ -95,5 +95,10 @@ Checklist
   [ ] PR is ready for review
 ```
 
+After a pull request has been submitted:
+- A reviewer must review the pull-request
+- the pull requests must pass all tests for all supported python versions 3.8, 3.9, 3.10, 3.11 and 3.12.
+- A maintainer merges the pull request.
+
 ## License
 pytest-minio-mock is licensed under the MIT License - see the LICENSE file for details.
