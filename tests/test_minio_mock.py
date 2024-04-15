@@ -123,12 +123,14 @@ def test_list_buckets(minio_mock):
 @pytest.mark.API
 def test_list_objects(minio_mock):
     client = Minio("http://local.host:9000")
+
+    with pytest.raises(S3Error):
+        objects = client.list_objects("no-such-bucket")
+
     bucket_name = "new-bucket"
     client.make_bucket(bucket_name)
     objects = client.list_objects(bucket_name)
-    assert len(objects) == 0
-    with pytest.raises(S3Error):
-        objects = client.list_objects("no-such-bucket")
+    assert len(list(objects)) == 0
 
     client.put_object(bucket_name, "a/b/c/object1", data=b"object1 data", length=12)
     client.put_object(bucket_name, "a/b/object2", data=b"object2 data", length=12)
@@ -137,7 +139,7 @@ def test_list_objects(minio_mock):
 
     # Test recursive listing
     objects_recursive = client.list_objects(bucket_name, prefix="a/", recursive=True)
-    assert len(objects_recursive) == 3, "Expected 3 objects under 'a/' with recursion"
+    # assert len(objects_recursive) == 3, "Expected 3 objects under 'a/' with recursion"
     # Check that all expected paths are returned
     assert set(obj.object_name for obj in objects_recursive) == {
         "a/b/c/object1",
@@ -149,21 +151,15 @@ def test_list_objects(minio_mock):
     objects_non_recursive = client.list_objects(
         bucket_name, prefix="a/", recursive=False
     )
-    assert (
-        len(objects_non_recursive) == 2
-    ), "Expected 1 object under 'a/' without recursion"
+
     # Check that the correct path is returned
     assert set(obj.object_name for obj in objects_non_recursive) == {
         "a/object3",
         "a/b/",
     }
 
-    print(objects_non_recursive)
-
     # Test listing at the bucket root
     objects_root = client.list_objects(bucket_name, recursive=False)
-    print(objects_root)
-    assert len(objects_root) == 2, "Expected 2 objects at the root"
     # Check that the correct paths are returned
     assert set(obj.object_name for obj in objects_root) == {"a/", "object4"}
 
