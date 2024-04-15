@@ -15,5 +15,5 @@ For more information and usage examples, please refer to the project's README.md
 
 """
 
-__version__ = "0.1.9"
+__version__ = "0.1.10"
 __author__ = "Oussama Jarrousse"

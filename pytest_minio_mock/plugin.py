@@ -24,13 +24,19 @@ import datetime
 import io
 import logging
 import os
+from collections import namedtuple
 
 import pytest
 import validators
 from minio import Minio
+from minio.datatypes import Object
 from minio.error import S3Error
 from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
+
+
+# Define a simple class or named tuple to hold object info
+# ObjectInfo = namedtuple("ObjectInfo", ["object_name"])
 
 
 class MockMinioObject:
@@ -619,26 +625,54 @@ class MockMinioClient:
         Returns:
             list: A list of object names that match the specified conditions.
         """
-        if bucket_name not in self.buckets:
-            raise S3Error(
-                message="bucket does not exist",
-                resource=bucket_name,
-                request_id=None,
-                host_id=None,
-                response="mocked_response",
-                code=404,
-                bucket_name=bucket_name,
-                object_name=None,
+
+        def _list_objects(
+            buckets, bucket_name, prefix="", recursive=False, start_after=""
+        ):
+            # Initialization
+            bucket = buckets[bucket_name]
+            # bucket_objects = []
+            seen_prefixes = set()
+
+            for obj_name in bucket.keys():
+                if obj_name.startswith(prefix) and (
+                    start_after == "" or obj_name > start_after
+                ):
+                    # Handle non-recursive listing by identifying and adding unique directory names
+                    if not recursive:
+                        sub_path = obj_name[len(prefix) :].strip("/")
+                        dir_end_idx = sub_path.find("/")
+                        if dir_end_idx != -1:
+                            dir_name = prefix + sub_path[: dir_end_idx + 1]
+                            if dir_name not in seen_prefixes:
+                                seen_prefixes.add(dir_name)
+                                yield Object(
+                                    bucket_name=bucket_name, object_name=dir_name
+                                )
+                                # bucket_objects.append()
+                            continue  # Skip further processing to prevent adding the full object path
+                    # Directly add the object for recursive listing or if it's a file in the current directory
+                    yield Object(bucket_name=bucket_name, object_name=obj_name)
+
+            # return bucket_objects
+
+        try:
+            if bucket_name not in self.buckets:
+                raise S3Error(
+                    message="bucket does not exist",
+                    resource=bucket_name,
+                    request_id=None,
+                    host_id=None,
+                    response="mocked_response",
+                    code=404,
+                    bucket_name=bucket_name,
+                    object_name=None,
+                )
+            return _list_objects(
+                self.buckets, bucket_name, prefix, recursive, start_after
             )
-        bucket = self.buckets[bucket_name]
-        bucket_objects = []
-        for obj_name in bucket:
-            if obj_name.startswith(prefix) and (
-                start_after == "" or obj_name > start_after
-            ):
-                # Here, just returning object name for simplicity
-                bucket_objects.append(obj_name)
-        return bucket_objects
+        except Exception as e:
+            raise e
 
     def remove_object(self, bucket_name, object_name):
         """
