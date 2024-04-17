@@ -31,6 +31,7 @@ import validators
 from minio import Minio
 from minio.datatypes import Object
 from minio.error import S3Error
+from minio.versioningconfig import VersioningConfig
 from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
 
@@ -609,6 +610,38 @@ class MockMinioClient:
             # "creation_date":datetime.datetime.utcnow()}
         }
         return True
+
+    def set_bucket_versioning(self, bucket_name: str, config: VersioningConfig):
+        self._health_check()
+        if not self.bucket_exists(bucket_name):
+            raise S3Error(
+                message="bucket does not exist",
+                resource=bucket_name,
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=404,
+                bucket_name=bucket_name,
+                object_name=None,
+            )
+        if not isinstance(config, VersioningConfig):
+            raise ValueError("config must be VersioningConfig type")
+        self.buckets[bucket_name]["versioning"] = config
+
+    def get_bucket_versioning(self, bucket_name: str) -> VersioningConfig:
+        self._health_check()
+        if not self.bucket_exists(bucket_name):
+            raise S3Error(
+                message="bucket does not exist",
+                resource=bucket_name,
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=404,
+                bucket_name=bucket_name,
+                object_name=None,
+            )
+        return self.buckets[bucket_name].get("versioning", VersioningConfig("Suspended"))
 
     def list_objects(self, bucket_name, prefix="", recursive=False, start_after=""):
         """

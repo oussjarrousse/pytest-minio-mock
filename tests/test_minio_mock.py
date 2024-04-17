@@ -4,6 +4,8 @@ import pytest
 import validators
 from minio import Minio
 from minio.error import S3Error
+from minio.commonconfig import ENABLED
+from minio.versioningconfig import VersioningConfig
 
 
 @pytest.mark.UNIT
@@ -61,6 +63,19 @@ def test_bucket_exists(minio_mock):
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
     assert client.bucket_exists(bucket_name), "Bucket should exist"
+
+
+@pytest.mark.UNIT
+@pytest.mark.API
+def test_bucket_versioning(minio_mock):
+    bucket_name = "existing-bucket"
+    client = Minio("http://local.host:9000")
+    client.make_bucket(bucket_name)
+    assert client.get_bucket_versioning(bucket_name).status == VersioningConfig("Suspended").status
+    client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
+    assert client.get_bucket_versioning(bucket_name).status == VersioningConfig(ENABLED).status
+    client.set_bucket_versioning(bucket_name, VersioningConfig("Suspended"))
+    assert client.get_bucket_versioning(bucket_name).status == VersioningConfig("Suspended").status
 
 
 @pytest.mark.UNIT
