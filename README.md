@@ -76,7 +76,13 @@ A brief description of the mocked methods and their behavior, like:
 - ...
 
 ## Contributing
-Contributions to pytest-minio-mock are welcome! The Contributing Guide is still under construction.
+Contributions to pytest-minio-mock are welcome!
+
+Follow the usual path:
+ - fork the repository
+ - create a feature branch
+ - push the branch to your forked repository
+ - from the forked repository, create a "pull request" to this project.
 
 When creating a pull request make sure to use the following template:
 
@@ -98,7 +104,8 @@ Checklist
 After a pull request has been submitted:
 - A reviewer must review the pull-request
 - the pull requests must pass all tests for all supported python versions 3.8, 3.9, 3.10, 3.11 and 3.12.
-- A maintainer merges the pull request.
+- A maintainer will eventually merges the pull request
+- A release manager will upload it to pypi.
 
 ## License
 pytest-minio-mock is licensed under the MIT License - see the LICENSE file for details.
