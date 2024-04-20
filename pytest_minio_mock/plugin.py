@@ -302,7 +302,7 @@ class MockMinioClient:
         file_path,
         request_headers=None,
         sse=None,
-        version_id=None,
+        version_id="null",
         extra_query_params=None,
     ):
         """
@@ -345,7 +345,7 @@ class MockMinioClient:
         length: int = 0,
         request_headers=None,
         ssec=None,
-        version_id=None,
+        version_id="null",
         extra_query_params=None,
     ):
         """
@@ -384,7 +384,7 @@ class MockMinioClient:
                 object_name=object_name,
             )
 
-        if version_id and not validators.uuid(version_id):
+        if version_id and version_id != "null" and not validators.uuid(version_id):
             raise S3Error(
                 message="Invalid version id specified",
                 resource=f"/{bucket_name}/{object_name}",
@@ -404,7 +404,7 @@ class MockMinioClient:
         # If no version was specified, try to find the first one that does not
         # correspond to a deleted object. Note that it can still be None after
         # that if versioning is Off, but that is not a problem.
-        if not version_id:
+        if version_id == "null":
             found_obj = None
             # reversed to start by the newest object
             for version_id, obj in reversed(the_object.items()):
@@ -582,12 +582,11 @@ class MockMinioClient:
         # I did not find the information about what exactly happend when versioning is OFF,
         # but I assume it is the same...
 
-        # version = None
-        # if self.get_bucket_versioning(bucket_name).status == ENABLED:
-        # # If status is enabled, create a new version UUID
-        #     version = str(uuid4())
+        version = "null"
+        # If status is enabled, create a new version UUID
+        if self.get_bucket_versioning(bucket_name).status == ENABLED:
+            version = str(uuid4())
 
-        version = str(uuid4())
         obj = MockMinioObject(
             object_name=object_name,
             data=data,
@@ -877,7 +876,7 @@ class MockMinioClient:
                             yield Object(
                                 bucket_name=bucket_name,
                                 object_name=obj_name,
-                                version_id=None,
+                                version_id="null",
                                 is_delete_marker=False,
                             )
 
@@ -906,7 +905,7 @@ class MockMinioClient:
         except Exception as e:
             raise e
 
-    def remove_object(self, bucket_name, object_name, version_id=None):
+    def remove_object(self, bucket_name, object_name, version_id="null"):
         """
         Removes an object from a bucket in the mock Minio server.
 
