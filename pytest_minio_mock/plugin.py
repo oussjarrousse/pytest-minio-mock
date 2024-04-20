@@ -55,7 +55,7 @@ class MockMinioObject:
           versioned bucket
     """
 
-    def __init__(self, object_name, data, version_id, is_delete_marker, latest):
+    def __init__(self, object_name, data, version_id, is_delete_marker, is_latest):
         """
         Initialize the MockMinioObject with a name and data.
 
@@ -70,8 +70,8 @@ class MockMinioObject:
         self._data = data
         self._version_id = version_id
         self._is_delete_marker = is_delete_marker
-        self._last_modified = datetime.datetime.now()
-        self._latest = latest
+        self._last_modified = datetime.datetime.utcnow()
+        self._is_latest = is_latest
 
     @property
     def data(self):
@@ -82,6 +82,11 @@ class MockMinioObject:
     def version_id(self):
         """Get the version of the object."""
         return self._version_id
+
+    @property
+    def last_modified(self):
+        """return the last modified datetime of the object."""
+        return self._last_modified
 
     @property
     def is_delete_marker(self):
@@ -101,6 +106,11 @@ class MockMinioObject:
     def object_name(self):
         """Get the name of the object."""
         return self._object_name
+
+    @property
+    def is_latest(self):
+        """is this object marked latest"""
+        return self._is_latest
 
 
 class MockMinioBucket:
@@ -594,7 +604,7 @@ class MockMinioClient:
             data=data,
             version_id=version,
             is_delete_marker=False,
-            latest=True,
+            is_latest=True,
         )
         # If versioning is OFF, there can only be one version of an object (store a read version_id non-the-less)
         if self.get_bucket_versioning(bucket_name).status == OFF:
@@ -603,8 +613,8 @@ class MockMinioClient:
             if object_name not in self.buckets[bucket_name].objects:
                 self.buckets[bucket_name].objects[object_name] = {}
             else:
-                for version, obj in self.buckets[bucket_name].objects[object_name]:
-                    obj._latest = False
+                for obj in self.buckets[bucket_name].objects[object_name].values():
+                    obj._is_latest = False
             self.buckets[bucket_name].objects[object_name][version] = obj
 
         return "Upload successful"
@@ -864,29 +874,33 @@ class MockMinioClient:
                     # Directly add the object for recursive listing or if it's a file in the current directory
                     if include_version:
                         # Minio API always includes deleted markers if include_version
-                        for version in bucket_objects[obj_name]:
+                        for version, obj in reversed(
+                            sorted(
+                                bucket_objects[obj_name].items(),
+                                key=lambda i: i[1].last_modified,
+                            )
+                        ):
                             yield Object(
                                 bucket_name=bucket_name,
                                 object_name=obj_name,
+                                last_modified=obj.last_modified,
                                 version_id=version,
-                                is_delete_marker=bucket_objects[obj_name][
-                                    version
-                                ].is_delete_marker,
+                                is_latest="true" if obj.is_latest else "false",
+                                is_delete_marker=obj.is_delete_marker,
                             )
                     else:
                         # only yield if the object is not a delete marker
-                        obj = bucket_objects[obj_name][
-                            list(bucket_objects[obj_name].keys())[-1]
-                        ]
+                        version = "null"
+                        obj = bucket_objects[obj_name][version]
                         if not obj.is_delete_marker:
                             yield Object(
                                 bucket_name=bucket_name,
                                 object_name=obj_name,
-                                version_id="null",
-                                is_delete_marker=False,
+                                last_modified=obj.last_modified,
+                                version_id=None,
+                                is_latest=None,
+                                is_delete_marker=obj.is_delete_marker,
                             )
-
-            # return bucket_objects
 
         try:
             if bucket_name not in self.buckets:
