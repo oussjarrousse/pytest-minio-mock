@@ -821,11 +821,11 @@ class MockMinioClient:
             include_version=False,
         ):
             # Initialization
-            bucket = buckets[bucket_name]["objects"]
+            bucket_objects = buckets[bucket_name].objects
             # bucket_objects = []
             seen_prefixes = set()
 
-            for obj_name in bucket.keys():
+            for obj_name in bucket_objects.keys():
                 if obj_name.startswith(prefix) and (
                     start_after == "" or obj_name > start_after
                 ):
@@ -845,18 +845,20 @@ class MockMinioClient:
                     # Directly add the object for recursive listing or if it's a file in the current directory
                     if include_version:
                         # Minio API always includes deleted markers if include_version
-                        for version in bucket[obj_name]:
+                        for version in bucket_objects[obj_name]:
                             yield Object(
                                 bucket_name=bucket_name,
                                 object_name=obj_name,
                                 version_id=version,
-                                is_delete_marker=bucket[obj_name][
+                                is_delete_marker=bucket_objects[obj_name][
                                     version
                                 ].is_delete_marker,
                             )
                     else:
                         # only yield if the object is not a delete marker
-                        obj = bucket[obj_name][list(bucket[obj_name].keys())[-1]]
+                        obj = bucket_objects[obj_name][
+                            list(bucket_objects[obj_name].keys())[-1]
+                        ]
                         if not obj.is_delete_marker:
                             yield Object(
                                 bucket_name=bucket_name,
