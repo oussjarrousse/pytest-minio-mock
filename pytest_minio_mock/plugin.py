@@ -29,10 +29,12 @@ from uuid import uuid4
 import pytest
 import validators
 from minio import Minio
+from minio.commonconfig import ENABLED
 from minio.datatypes import Object
 from minio.error import S3Error
-from minio.commonconfig import ENABLED
-from minio.versioningconfig import VersioningConfig, OFF, SUSPENDED
+from minio.versioningconfig import OFF
+from minio.versioningconfig import SUSPENDED
+from minio.versioningconfig import VersioningConfig
 from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
 
@@ -53,7 +55,7 @@ class MockMinioObject:
           versioned bucket
     """
 
-    def __init__(self, object_name, data, version_id=None, is_delete_marker=False):
+    def __init__(self, object_name, data, version_id, is_delete_marker):
         """
         Initialize the MockMinioObject with a name and data.
 
@@ -93,6 +95,33 @@ class MockMinioObject:
     def object_name(self):
         """Get the name of the object."""
         return self._object_name
+
+
+class MockMinioBucket:
+    def __init__(self, bucket_name: str, versioning: VersioningConfig):
+        self._bucket_name = bucket_name
+        self._objects = {}
+        self._versioning = versioning
+
+    @property
+    def bucket_name(self):
+        """Get the name of the bucket."""
+        return self._bucket_name
+
+    @property
+    def objects(self):
+        """Get the objects stored in the bucket."""
+        return self._objects
+
+    @property
+    def versioning(self):
+        """Get the the config of versioning of the bucket."""
+        return self._versioning
+
+    @versioning.setter
+    def versioning(self, versioning: VersioningConfig):
+        """Set the versioning config of the bucket."""
+        self._versioning = versioning
 
 
 class MockMinioServer:
@@ -352,7 +381,7 @@ class MockMinioClient:
             object_name=object_name,
         )
         try:
-            the_object = self.buckets[bucket_name]["objects"][object_name]
+            the_object = self.buckets[bucket_name].objects[object_name]
         except KeyError:
             raise nosuchkey
 
@@ -547,9 +576,7 @@ class MockMinioClient:
             # If status is enabled, create a new version UUID
             version = str(uuid4())
 
-        obj = MockMinioObject(
-            object_name=object_name, data=data, version_id=version
-        )
+        obj = MockMinioObject(object_name=object_name, data=data, version_id=version)
         # If versioning is OFF, there can only be one version (None) of an object
         if self.get_bucket_versioning(bucket_name).status == OFF:
             self.buckets[bucket_name]["objects"][object_name] = {version: obj}
@@ -760,15 +787,15 @@ class MockMinioClient:
                 bucket_name=bucket_name,
                 object_name=None,
             )
-        return self.buckets[bucket_name]["versioning"]
+        return self.buckets[bucket_name].versioning
 
     def list_objects(
-            self,
-            bucket_name,
-            prefix="",
-            recursive=False,
-            start_after="",
-            include_version=False,
+        self,
+        bucket_name,
+        prefix="",
+        recursive=False,
+        start_after="",
+        include_version=False,
     ):
         """
         Lists objects in a bucket with the specified prefix and conditions.
@@ -825,7 +852,9 @@ class MockMinioClient:
                                 bucket_name=bucket_name,
                                 object_name=obj_name,
                                 version_id=version,
-                                is_delete_marker=bucket[obj_name][version].is_delete_marker,
+                                is_delete_marker=bucket[obj_name][
+                                    version
+                                ].is_delete_marker,
                             )
                     else:
                         # only yield if the object is not a delete marker
@@ -853,7 +882,12 @@ class MockMinioClient:
                     object_name=None,
                 )
             return _list_objects(
-                self.buckets, bucket_name, prefix, recursive, start_after, include_version
+                self.buckets,
+                bucket_name,
+                prefix,
+                recursive,
+                start_after,
+                include_version,
             )
         except Exception as e:
             raise e
@@ -873,18 +907,20 @@ class MockMinioClient:
             None: The method has no return value but indicates successful removal.
         """
         self._health_check()
-        if object_name not in self.buckets[bucket_name]["objects"]:
+        if object_name not in self.buckets[bucket_name].objects:
             # object does not exist: nothing to do
             return
         try:
             if self.get_bucket_versioning(bucket_name).status == OFF:
-                del self.buckets[bucket_name]["objects"][object_name]
+                del self.buckets[bucket_name].objects[object_name]
                 return
 
             if not version_id:
                 if self.get_bucket_versioning(bucket_name).status == ENABLED:
                     version_id = str(uuid4())
-                    self.buckets[bucket_name]["objects"][object_name][version_id] = MockMinioObject(
+                    self.buckets[bucket_name].objects[object_name][
+                        version_id
+                    ] = MockMinioObject(
                         object_name=object_name,
                         version_id=version_id,
                         is_delete_marker=True,
@@ -895,17 +931,19 @@ class MockMinioClient:
                     # That will lose the first version if it was created in an
                     # unversioned bucket that was then versioned,
                     # but that seems to be the expected behavior
-                    obj = self.buckets[bucket_name]["objects"][object_name].pop(version_id)
+                    obj = self.buckets[bucket_name].objects[object_name].pop(version_id)
                     obj._is_delete_marker = True
-                    self.buckets[bucket_name]["objects"][object_name][version_id] = obj
+                    self.buckets[bucket_name].objects[object_name][version_id] = obj
             elif (
-                version_id not in self.buckets[bucket_name]["objects"][object_name]
-                or self.buckets[bucket_name]["objects"][object_name][version_id].is_delete_marker
+                version_id not in self.buckets[bucket_name].objects[object_name]
+                or self.buckets[bucket_name]
+                .objects[object_name][version_id]
+                .is_delete_marker
             ):
                 # version_id does not exist or is a delete_marker: nothing to do
                 return
             else:
-                del self.buckets[bucket_name]["objects"][object_name][version_id]
+                del self.buckets[bucket_name].objects[object_name][version_id]
         except Exception:
             logging.error("remove_object(): Exception")
             logging.error(self.buckets)
