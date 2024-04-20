@@ -15,19 +15,18 @@ from pytest_minio_mock.plugin import MockMinioBucket
 class TestsMockMinioBucket:
     @pytest.mark.UNIT
     def test_init(self):
-        mock_minio_bucket = MockMinioBucket("a_bucket", None)
-        assert mock_minio_bucket._bucket_name == "a_bucket"
+        mock_minio_bucket = MockMinioBucket(None)
         assert mock_minio_bucket._versioning == None
         assert mock_minio_bucket._objects == {}
 
         versioning_config = VersioningConfig()
-        mock_minio_bucket = MockMinioBucket("a_bucket", versioning_config)
+        mock_minio_bucket = MockMinioBucket(versioning_config)
         assert isinstance(mock_minio_bucket._versioning, VersioningConfig)
         assert mock_minio_bucket.versioning.status == OFF
 
     @pytest.mark.UNIT
     def test_versioning(self):
-        mock_minio_bucket = MockMinioBucket("a_bucket", VersioningConfig())
+        mock_minio_bucket = MockMinioBucket(VersioningConfig())
         versioning_config = mock_minio_bucket.versioning
         assert isinstance(versioning_config, VersioningConfig)
         assert versioning_config.status == OFF

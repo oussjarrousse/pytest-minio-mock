@@ -98,15 +98,11 @@ class MockMinioObject:
 
 
 class MockMinioBucket:
-    def __init__(self, bucket_name: str, versioning: VersioningConfig):
-        self._bucket_name = bucket_name
-        self._objects = {}
+    def __init__(self, versioning: VersioningConfig, location=None, object_lock=False):
         self._versioning = versioning
-
-    @property
-    def bucket_name(self):
-        """Get the name of the bucket."""
-        return self._bucket_name
+        self._objects = {}
+        self._location = location
+        self._object_lock = object_lock
 
     @property
     def objects(self):
@@ -571,21 +567,27 @@ class MockMinioClient:
         # objects created when versioning is suspended have a null version ID (None in Python)
         # I did not find the information about what exactly happend when versioning is OFF,
         # but I assume it is the same...
-        version = None
-        if self.get_bucket_versioning(bucket_name).status == ENABLED:
-            # If status is enabled, create a new version UUID
-            version = str(uuid4())
+        # version = None
+        version = str(uuid4())
+        # if self.get_bucket_versioning(bucket_name).status == ENABLED:
+        # If status is enabled, create a new version UUID
+        # version = str(uuid4())
 
-        obj = MockMinioObject(object_name=object_name, data=data, version_id=version)
+        obj = MockMinioObject(
+            object_name=object_name,
+            data=data,
+            version_id=version,
+            is_delete_marker=False,
+        )
         # If versioning is OFF, there can only be one version (None) of an object
         if self.get_bucket_versioning(bucket_name).status == OFF:
-            self.buckets[bucket_name]["objects"][object_name] = {version: obj}
+            self.buckets[bucket_name].objects[object_name] = {version: obj}
         else:
-            if object_name not in self.buckets[bucket_name]["objects"]:
-                self.buckets[bucket_name]["objects"][object_name] = {}
+            if object_name not in self.buckets[bucket_name].objects:
+                self.buckets[bucket_name].objects[object_name] = {}
             # If versioning is ENABLED, a new version is added. If it is SUSPENDED,
             # the None version is added (or replaced if already present)
-            self.buckets[bucket_name]["objects"][object_name][version] = obj
+            self.buckets[bucket_name].objects[object_name][version] = obj
         return "Upload successful"
 
     def get_presigned_url(
@@ -742,13 +744,9 @@ class MockMinioClient:
             bool: True indicating the bucket was successfully created.
         """
         self._health_check()
-        self.buckets[bucket_name] = {
-            "versioning": VersioningConfig(),
-            "objects": {},
-            #  "__META__":
-            # {"name":bucket_name,
-            # "creation_date":datetime.datetime.utcnow()}
-        }
+        self.buckets[bucket_name] = MockMinioBucket(
+            versioning=VersioningConfig(), location=location, object_lock=object_lock
+        )
         return True
 
     def set_bucket_versioning(self, bucket_name: str, config: VersioningConfig):
@@ -769,7 +767,7 @@ class MockMinioClient:
             )
         if not isinstance(config, VersioningConfig):
             raise ValueError("config must be VersioningConfig type")
-        self.buckets[bucket_name]["versioning"] = config
+        self.buckets[bucket_name].versioning = config
 
     def get_bucket_versioning(self, bucket_name: str) -> VersioningConfig:
         """Bucket versioning can be OFF (the initial value), ENABLED, or
