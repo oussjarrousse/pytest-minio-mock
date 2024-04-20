@@ -49,7 +49,8 @@ def test_make_bucket(minio_mock):
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_adding_and_removing_objects(minio_mock):
+def test_adding_and_removing_objects_basic(minio_mock):
+    # simple thing
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_path = "tests/fixtures/maya.jpeg"

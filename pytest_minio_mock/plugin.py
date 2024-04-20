@@ -955,7 +955,7 @@ class MockMinioClient:
             return
         try:
             if self.get_bucket_versioning(bucket_name).status == OFF:
-                if version_id:
+                if version_id and version_id != "null":
                     if version_id in self.buckets[bucket_name].objects[object_name]:
                         del self.buckets[bucket_name].objects[object_name][version_id]
                     else:
