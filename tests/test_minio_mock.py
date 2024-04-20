@@ -3,14 +3,14 @@ import sys
 import pytest
 import validators
 from minio import Minio
-from minio.error import S3Error
 from minio.commonconfig import ENABLED
+from minio.error import S3Error
 from minio.versioningconfig import VersioningConfig
 
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_make_bucket():
+def test_make_bucket(minio_mock):
     bucket_name = "test-bucket"
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
@@ -19,7 +19,7 @@ def test_make_bucket():
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_adding_and_removing_objects():
+def test_adding_and_removing_objects(minio_mock):
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_path = "tests/fixtures/maya.jpeg"
@@ -38,7 +38,7 @@ def test_adding_and_removing_objects():
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_versioned_objects():
+def test_versioned_objects(minio_mock):
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_path = "tests/fixtures/maya.jpeg"
@@ -81,7 +81,7 @@ def test_versioned_objects():
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_versioned_objects_after_upload():
+def test_versioned_objects_after_upload(minio_mock):
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_path = "tests/fixtures/maya.jpeg"
@@ -116,7 +116,7 @@ def test_versioned_objects_after_upload():
 @pytest.mark.UNIT
 @pytest.mark.API
 @pytest.mark.parametrize("versioned", (True, False))
-def test_file_download(versioned):
+def test_file_download(minio_mock, versioned):
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_content = b"Test file content"
@@ -149,7 +149,7 @@ def test_file_download(versioned):
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_bucket_exists():
+def test_bucket_exists(minio_mock):
     bucket_name = "existing-bucket"
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
@@ -158,7 +158,7 @@ def test_bucket_exists():
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_bucket_versioning():
+def test_bucket_versioning(minio_mock):
     bucket_name = "existing-bucket"
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
@@ -172,7 +172,7 @@ def test_bucket_versioning():
 @pytest.mark.UNIT
 @pytest.mark.API
 @pytest.mark.parametrize("versioned", (True, False))
-def test_get_presigned_url(versioned):
+def test_get_presigned_url(minio_mock, versioned):
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_path = "tests/fixtures/maya.jpeg"
@@ -184,10 +184,10 @@ def test_get_presigned_url(versioned):
         client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
     client.fput_object(bucket_name, object_name, file_path)
     if versioned:
-        version = list(client.list_objects(bucket_name, object_name, include_version=True))[-1].version_id
-    url = client.get_presigned_url(
-        "GET", bucket_name, object_name, version_id=version
-    )
+        version = list(
+            client.list_objects(bucket_name, object_name, include_version=True)
+        )[-1].version_id
+    url = client.get_presigned_url("GET", bucket_name, object_name, version_id=version)
     assert validators.url(url)
     if version:
         assert url.endswith(f"?versionId={version}")
@@ -195,7 +195,7 @@ def test_get_presigned_url(versioned):
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_presigned_put_url():
+def test_presigned_put_url(minio_mock):
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_path = "tests/fixtures/maya.jpeg"
@@ -209,7 +209,7 @@ def test_presigned_put_url():
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_presigned_get_url():
+def test_presigned_get_url(minio_mock):
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_path = "tests/fixtures/maya.jpeg"
@@ -223,7 +223,7 @@ def test_presigned_get_url():
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_list_buckets():
+def test_list_buckets(minio_mock):
     client = Minio("http://local.host:9000")
     buckets = client.list_buckets()
     n = len(buckets)
@@ -236,7 +236,7 @@ def test_list_buckets():
 @pytest.mark.REGRESSION
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_list_objects():
+def test_list_objects(minio_mock):
     client = Minio("http://local.host:9000")
 
     with pytest.raises(S3Error):
@@ -253,7 +253,9 @@ def test_list_objects():
     client.put_object(bucket_name, "object4", data=b"object4 data", length=11)
 
     # Test recursive listing
-    objects_recursive = list(client.list_objects(bucket_name, prefix="a/", recursive=True))
+    objects_recursive = list(
+        client.list_objects(bucket_name, prefix="a/", recursive=True)
+    )
     assert len(objects_recursive) == 3, "Expected 3 objects under 'a/' with recursion"
     # Check that all expected paths are returned
     assert set(obj.object_name for obj in objects_recursive) == {
@@ -280,7 +282,7 @@ def test_list_objects():
 
 
 @pytest.mark.REGRESSION
-def test_connecting_to_the_same_endpoint():
+def test_connecting_to_the_same_endpoint(minio_mock):
     client_1 = Minio("http://local.host:9000")
     client_1_buckets = ["bucket-1", "bucket-2", "bucket-3"]
     for bucket in client_1_buckets:
