@@ -20,3 +20,6 @@ venv
 *.egg
 build
 dist
+
+#pypi
+.pypirc
