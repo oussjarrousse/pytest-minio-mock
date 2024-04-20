@@ -55,7 +55,7 @@ class MockMinioObject:
           versioned bucket
     """
 
-    def __init__(self, object_name, data, version_id, is_delete_marker):
+    def __init__(self, object_name, data, version_id, is_delete_marker, latest):
         """
         Initialize the MockMinioObject with a name and data.
 
@@ -70,6 +70,8 @@ class MockMinioObject:
         self._data = data
         self._version_id = version_id
         self._is_delete_marker = is_delete_marker
+        self._last_modified = datetime.datetime.now()
+        self._latest = latest
 
     @property
     def data(self):
@@ -592,6 +594,7 @@ class MockMinioClient:
             data=data,
             version_id=version,
             is_delete_marker=False,
+            latest=True,
         )
         # If versioning is OFF, there can only be one version of an object (store a read version_id non-the-less)
         if self.get_bucket_versioning(bucket_name).status == OFF:
@@ -599,6 +602,9 @@ class MockMinioClient:
         else:
             if object_name not in self.buckets[bucket_name].objects:
                 self.buckets[bucket_name].objects[object_name] = {}
+            else:
+                for version, obj in self.buckets[bucket_name].objects[object_name]:
+                    obj._latest = False
             self.buckets[bucket_name].objects[object_name][version] = obj
 
         return "Upload successful"
