@@ -613,8 +613,10 @@ class MockMinioClient:
             if object_name not in self.buckets[bucket_name].objects:
                 self.buckets[bucket_name].objects[object_name] = {}
             else:
-                for obj in self.buckets[bucket_name].objects[object_name].values():
-                    obj._is_latest = False
+                for old_version in self.buckets[bucket_name].objects[object_name]:
+                    self.buckets[bucket_name].objects[object_name][
+                        old_version
+                    ]._is_latest = False
             self.buckets[bucket_name].objects[object_name][version] = obj
 
         return "Upload successful"
@@ -874,23 +876,31 @@ class MockMinioClient:
                     # Directly add the object for recursive listing or if it's a file in the current directory
                     if include_version:
                         # Minio API always includes deleted markers if include_version
-                        for version, obj in reversed(
-                            sorted(
-                                bucket_objects[obj_name].items(),
-                                key=lambda i: i[1].last_modified,
+                        versions_list = list(
+                            reversed(
+                                sorted(
+                                    bucket_objects[obj_name].items(),
+                                    key=lambda i: i[1].last_modified,
+                                )
                             )
-                        ):
+                        )
+                        for version, obj in versions_list:
                             yield Object(
                                 bucket_name=bucket_name,
                                 object_name=obj_name,
                                 last_modified=obj.last_modified,
                                 version_id=version,
-                                is_latest="true" if obj.is_latest else "false",
+                                is_latest=obj.is_latest,
                                 is_delete_marker=obj.is_delete_marker,
                             )
                     else:
                         # only yield if the object is not a delete marker
-                        version = "null"
+                        version, _ = list(
+                            sorted(
+                                bucket_objects[obj_name].items(),
+                                key=lambda i: i[1].last_modified,
+                            )
+                        )[-1]
                         obj = bucket_objects[obj_name][version]
                         if not obj.is_delete_marker:
                             yield Object(
