@@ -6,6 +6,7 @@ from minio import Minio
 from minio.commonconfig import ENABLED
 from minio.error import S3Error
 from minio.versioningconfig import OFF
+from minio.versioningconfig import SUSPENDED
 from minio.versioningconfig import VersioningConfig
 
 from pytest_minio_mock.plugin import MockMinioBucket
@@ -58,11 +59,11 @@ def test_adding_and_removing_objects(minio_mock):
     client.fput_object(bucket_name, object_name, file_path)
 
     assert (
-        object_name in client.buckets[bucket_name]["objects"]
+        object_name in client.buckets[bucket_name].objects
     ), "Object should be in the bucket after upload"
     client.remove_object(bucket_name, object_name)
 
-    assert object_name not in client.buckets[bucket_name]["objects"]
+    assert object_name not in client.buckets[bucket_name].objects
 
 
 @pytest.mark.UNIT
@@ -130,7 +131,7 @@ def test_versioned_objects_after_upload(minio_mock):
     assert len(objects) == 2
     assert objects[0].version_id is None
     assert last_version is not None
-    client.set_bucket_versioning(bucket_name, VersioningConfig("Suspended"))
+    client.set_bucket_versioning(bucket_name, VersioningConfig(SUSPENDED))
 
     client.remove_object(bucket_name, object_name)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
