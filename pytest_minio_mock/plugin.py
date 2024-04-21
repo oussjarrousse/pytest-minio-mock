@@ -5,7 +5,9 @@ need for a real Minio server. It's designed to mimic the behavior of the real Mi
 degree that is useful for testing purposes.
 
 Classes:
+    MockMinioObjectVersion: Represents a mock object version stored in Minio.
     MockMinioObject: Represents a mock object stored in Minio.
+    MockMinioBucket: Represents a mock bucket stored in Minio.
     MockMinioServer: Represents a single mock Minio server.
     MockMinioServers: Manages multiple mock Minio server instances.
     MockMinioClient: A mock version of the Minio client.
@@ -43,9 +45,9 @@ from urllib3.response import HTTPResponse
 # ObjectInfo = namedtuple("ObjectInfo", ["object_name"])
 
 
-class MockMinioObject:
+class MockMinioObjectVersion:
     """
-    Represents a mock object in Minio storage.
+    Represents a mock object version in Minio storage.
 
     Attributes:
         object_name (str): The name of the object.
@@ -57,7 +59,7 @@ class MockMinioObject:
 
     def __init__(self, object_name, data, version_id, is_delete_marker, is_latest):
         """
-        Initialize the MockMinioObject with a name and data.
+        Initialize the MockMinioObjectVersion with a name and data.
 
         Args:
             object_name (str): The name of the object.
@@ -118,26 +120,194 @@ class MockMinioObject:
         self._is_latest = value
 
 
+class MockMinioObject:
+    """
+    Represents a mock object in Minio storage.
+    """
+
+    def __init__(self, object_name):
+        self._object_name = object_name
+        self._versions = {}
+
+    @property
+    def object_name(self):
+        """Get the name of the object stored at initialization"""
+        return self._object_name
+
+    @property
+    def versions(self):
+        """Get the versions stored in the object"""
+        return self._versions
+
+    def reset_latest(self):
+        """
+        Sets the value of the latest flag to False in all object versions
+        """
+        for _, obj in self._versions.items():
+            if obj.is_latest:
+                obj.is_latest = False
+        return
+
+    def get_latest(self):
+        """
+        Returns:
+            The version that is marked latest.
+            If the object has no versions, it returns None.
+            if none of the versions is marked latest it raises an exception that indicates an implementation error
+        """
+        if not self._versions:
+            return None
+        for _, obj in self._versions.items():
+            if obj.is_latest:
+                return obj
+        raise RuntimeError("Implemnetation Error")
+
+    def put_object_version(self, version_id, obj):
+        """
+        Inserts a object version in the _versions map.
+        """
+        self.reset_latest()
+        obj.latest = True
+        self._versions[version_id] = obj
+
+    def put_object(
+        self,
+        object_name: str,
+        data,
+        length: int,
+        content_type: str = "application/octet-stream",
+        metadata=None,
+        sse=None,
+        progress=None,
+        part_size: int = 0,
+        # num_parallel_uploads: int = 3,
+        # tags = None,
+        # retention = None,
+        # legal_hold: bool = False,
+        versioning: VersioningConfig = VersioningConfig(),
+    ):
+        """
+        Returns:
+            the put object
+        """
+
+        # According to
+        # https://min.io/docs/minio/linux/administration/object-management/object-versioning.html#suspend-bucket-versioning
+        # objects created when versioning is suspended have a 'null' version ID (None in Python)
+
+        version_id = "null"
+        # If status is enabled, create a new version UUID
+        if versioning.status == ENABLED:
+            version_id = str(uuid4())
+
+        obj = MockMinioObjectVersion(
+            object_name=object_name,
+            data=data,
+            version_id=version_id,
+            is_delete_marker=False,
+            is_latest=True,
+        )
+        # If versioning is OFF, there can only be one version of an object (store a read version_id non-the-less)
+        if versioning.status == OFF:
+            self._versions = {}
+
+        self.put_object_version(version_id, obj)
+        return obj
+
+    def get_object(self, version_id, versioning: VersioningConfig):
+        """
+        Returns
+            the stored object if versioning is disabled
+            the latest version of the object if versioning is enabled
+        """
+        if version_id and version_id != "null" and not validators.uuid(version_id):
+            raise S3Error(
+                message="Invalid version id specified",
+                resource=f"/{self.bucket_name}/{object_name}",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=422,
+                bucket_name=self.bucket_name,
+                object_name=object_name,
+            )
+
+        # If version == None, give version_id a value
+        if not version_id:
+            if not self._versions:
+                raise S3Error(
+                    # code=NoSuchKey
+                    message="The specified key does not exist.",
+                    resource="",
+                    request_id=None,
+                    host_id=None,
+                    response="mocked_response",
+                    code=404,
+                    bucket_name=None,
+                    object_name=self.object_name,
+                )
+
+            # if versioning is disabled, look for the object with version_id = "null"
+            if versioning.status == OFF:
+                version_id = "null"
+            # if versioning is enabled or suspended, get the version_id of the latest_version
+            else:
+                latest_object_version = self.get_latest()
+                if latest_object_version:
+                    version_id = latest_object_version.version_id
+
+        # now try to get the object with that version_id
+        try:
+            the_object_version = self._versions[version_id]
+        except KeyError as exc:
+            raise S3Error(
+                message="The specified version does not exist",
+                resource="",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=404,
+                bucket_name=None,
+                object_name=self.object_name,
+            ) from exc
+
+        # if the delete_marker is set raise an error
+        if the_object_version.is_delete_marker:
+            raise S3Error(
+                message="The specified method is not allowed against this resource.",
+                resource="",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=403,
+                bucket_name=None,
+                object_name=self.object_name,
+            )
+        return the_object_version
+
+
 class MockMinioBucket:
     """
     Represents a mock Bucket in Minio storage.
     """
 
-    def __init__(self, versioning: VersioningConfig, location=None, object_lock=False):
+    def __init__(
+        self,
+        bucket_name,
+        versioning: VersioningConfig,
+        location=None,
+        object_lock=False,
+    ):
+        self._bucket_name = bucket_name
         self._versioning = versioning
         self._objects = {}
         self._location = location
         self._object_lock = object_lock
 
-    def get_latest_object(self, object_name):
-        """returns the latest_object"""
-        if not self._objects[object_name]:
-            return None
-        for version in self._objects[object_name]:
-            obj = self._objects[object_name][version]
-            if obj.is_latest:
-                return obj
-        raise Exception("no latest")
+    @property
+    def bucket_name(self):
+        """Gets the name of the bucket stored at initialization."""
+        return self._bucket_name
 
     @property
     def objects(self):
@@ -153,6 +323,72 @@ class MockMinioBucket:
     def versioning(self, versioning: VersioningConfig):
         """Set the versioning config of the bucket."""
         self._versioning = versioning
+
+    def put_object(
+        self,
+        object_name: str,
+        data,
+        length: int,
+        content_type: str = "application/octet-stream",
+        metadata=None,
+        sse=None,
+        progress=None,
+        part_size: int = 0,
+        # num_parallel_uploads: int = 3,
+        # tags = None,
+        # retention = None,
+        # legal_hold: bool = False,
+    ):
+        if object_name not in self.objects:
+            self.objects[object_name] = MockMinioObject(object_name)
+
+        obj = self.objects[object_name].put_object(
+            object_name=object_name,
+            data=data,
+            length=length,
+            content_type=content_type,
+            metadata=metadata,
+            sse=sse,
+            progress=progress,
+            part_size=part_size,
+            # num_parallel_uploads: int = 3,
+            # tags = None,
+            # retention = None,
+            # legal_hold: bool = False,
+            versioning=self.versioning,
+        )
+
+        return obj
+
+    def get_object(self, object_name, version_id):
+        try:
+            the_object = self.objects[object_name]
+        except KeyError as exc:
+            raise S3Error(
+                message="The specified key does not exist.",
+                resource=f"/{self.bucket_name}/{object_name}",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=404,
+                bucket_name=self.bucket_name,
+                object_name=object_name,
+            ) from exc
+
+        try:
+            the_object_version = the_object.get_object(version_id, self.versioning)
+        except S3Error as e:
+            raise S3Error(
+                message=e.message,
+                response=e.response,
+                resource=f"/{self.bucket_name}/{object_name}",
+                host_id=e._host_id,
+                request_id=e.request_id,
+                code=e.code,
+                bucket_name=self.bucket_name,
+                object_name=object_name,
+            )
+        return the_object_version
 
 
 class MockMinioServer:
@@ -194,29 +430,29 @@ class MockMinioServer:
         return len(self._buckets)
 
     def keys(self):
-        """Returns the keys of the self._buckets dictionary"""
+        """Returns the keys of the self._buckets dictionary."""
         return self._buckets.keys()
 
     def values(self):
-        """Returns the values of the self._buckets dictionary"""
+        """Returns the values of the self._buckets dictionary."""
         return self._buckets.values()
 
     def items(self):
-        """Returns the items of the self._buckets dictionary"""
+        """Returns the items of the self._buckets dictionary."""
         return self._buckets.items()
 
     def get(self, key, default=None):
         """get a specific bucket,
-        or default if key is not in the self._buckets dictionary
+        or default if key is not in the self._buckets dictionary.
         """
         return self._buckets.get(key, default)
 
     def pop(self, key, default=None):
-        """pops a specific bucket"""
+        """pops a specific bucket."""
         return self._buckets.pop(key, default) if key in self._buckets else default
 
     def update(self, other):
-        """updates the self._buckets dictionary with another dictionary"""
+        """updates the self._buckets dictionary with another dictionary."""
         self._buckets.update(other)
 
     def __contains__(self, item):
@@ -408,82 +644,14 @@ class MockMinioClient:
             HTTPResponse: A response object containing the object data.
         """
         self._health_check()
-        try:
-            the_objects = self.buckets[bucket_name].objects[object_name]
-        except KeyError as exc:
-            raise S3Error(
-                message="The specified key does not exist.",
-                resource=f"/{bucket_name}/{object_name}",
-                request_id=None,
-                host_id=None,
-                response="mocked_response",
-                code=404,
-                bucket_name=bucket_name,
-                object_name=object_name,
-            ) from exc
 
-        if version_id and version_id != "null" and not validators.uuid(version_id):
-            raise S3Error(
-                message="Invalid version id specified",
-                resource=f"/{bucket_name}/{object_name}",
-                request_id=None,
-                host_id=None,
-                response="mocked_response",
-                code=422,
-                bucket_name=bucket_name,
-                object_name=object_name,
-            )
+        the_object_version = self.buckets[bucket_name].get_object(
+            object_name, version_id
+        )
+        if not the_object_version:
+            raise RuntimeError("Implementation Error")
 
-        # If version == None, give version_id a value
-        if not version_id:
-            if not the_objects:
-                raise S3Error(
-                    # code=NoSuchKey
-                    message="The specified key does not exist.",
-                    resource=f"/{bucket_name}/{object_name}",
-                    request_id=None,
-                    host_id=None,
-                    response="mocked_response",
-                    code=404,
-                    bucket_name=bucket_name,
-                    object_name=object_name,
-                )
-
-            # if versioning is disabled, look for the object with version_id = "null"
-            if self.get_bucket_versioning(bucket_name).status == OFF:
-                version_id = "null"
-            # if versioning is enabled or suspended, get the version_id of the latest_object
-            else:
-                latest_object = self.buckets[bucket_name].get_latest_object(object_name)
-                if latest_object:
-                    version_id = latest_object.version_id
-
-        try:
-            the_object = the_objects[version_id]
-        except KeyError as exc:
-            raise S3Error(
-                message="The specified version does not exist",
-                resource=f"/{bucket_name}/{object_name}",
-                request_id=None,
-                host_id=None,
-                response="mocked_response",
-                code=404,
-                bucket_name=bucket_name,
-                object_name=object_name,
-            ) from exc
-
-        if the_object.is_delete_marker:
-            raise S3Error(
-                message="The specified method is not allowed against this resource.",
-                resource=f"/{bucket_name}/{object_name}",
-                request_id=None,
-                host_id=None,
-                response="mocked_response",
-                code=403,
-                bucket_name=bucket_name,
-                object_name=object_name,
-            )
-        data = the_object.data
+        data = the_object_version.data
 
         # Create a buffer containing the data
         if isinstance(data, io.BytesIO):
@@ -571,7 +739,7 @@ class MockMinioClient:
         metadata=None,
         sse=None,
         progress=None,
-        part_size: int = 0
+        part_size: int = 0,
         # num_parallel_uploads: int = 3,
         # tags = None,
         # retention = None,
@@ -598,37 +766,7 @@ class MockMinioClient:
         Returns:
             str: Confirmation message indicating successful upload.
         """
-        _ = self._put_object(
-            bucket_name,
-            object_name,
-            data,
-            length,
-            content_type,
-            metadata,
-            sse,
-            progress,
-            part_size,
-        )
 
-        return "Upload successful"
-
-    def _put_object(
-        self,
-        bucket_name: str,
-        object_name: str,
-        data,
-        length: int,
-        content_type: str = "application/octet-stream",
-        metadata=None,
-        sse=None,
-        progress=None,
-        part_size: int = 0,
-        # num_parallel_uploads: int = 3,
-        # tags = None,
-        # retention = None,
-        # legal_hold: bool = False,
-        is_delete_marker=False,
-    ):
         self._health_check()
         if not self.bucket_exists(bucket_name):
             raise S3Error(
@@ -642,35 +780,22 @@ class MockMinioClient:
                 object_name=None,
             )
 
-        # According to
-        # https://min.io/docs/minio/linux/administration/object-management/object-versioning.html#suspend-bucket-versioning
-        # objects created when versioning is suspended have a 'null' version ID (None in Python)
-
-        version = "null"
-        # If status is enabled, create a new version UUID
-        if self.get_bucket_versioning(bucket_name).status == ENABLED:
-            version = str(uuid4())
-
-        obj = MockMinioObject(
+        _ = self.buckets[bucket_name].put_object(
             object_name=object_name,
             data=data,
-            version_id=version,
-            is_delete_marker=is_delete_marker,
-            is_latest=True,
+            length=length,
+            content_type=content_type,
+            metadata=metadata,
+            sse=sse,
+            progress=progress,
+            part_size=part_size,
+            # num_parallel_uploads: int = 3,
+            # tags = None,
+            # retention = None,
+            # legal_hold: bool = False,
         )
-        # If versioning is OFF, there can only be one version of an object (store a read version_id non-the-less)
-        if self.get_bucket_versioning(bucket_name).status == OFF:
-            self.buckets[bucket_name].objects[object_name] = {version: obj}
-        else:
-            if object_name not in self.buckets[bucket_name].objects:
-                self.buckets[bucket_name].objects[object_name] = {}
-            else:
-                latest_obj = self.buckets[bucket_name].get_latest_object(object_name)
-                if latest_obj:
-                    latest_obj.is_latest = False
 
-            self.buckets[bucket_name].objects[object_name][version] = obj
-        return obj
+        return "Upload successful"
 
     def get_presigned_url(
         self,
@@ -827,7 +952,10 @@ class MockMinioClient:
         """
         self._health_check()
         self.buckets[bucket_name] = MockMinioBucket(
-            versioning=VersioningConfig(), location=location, object_lock=object_lock
+            bucket_name=bucket_name,
+            versioning=VersioningConfig(),
+            location=location,
+            object_lock=object_lock,
         )
         return True
 
@@ -907,13 +1035,13 @@ class MockMinioClient:
             # bucket_objects = []
             seen_prefixes = set()
 
-            for obj_name in bucket_objects.keys():
-                if obj_name.startswith(prefix) and (
-                    start_after == "" or obj_name > start_after
+            for object_name in bucket_objects.keys():
+                if object_name.startswith(prefix) and (
+                    start_after == "" or object_name > start_after
                 ):
                     # Handle non-recursive listing by identifying and adding unique directory names
                     if not recursive:
-                        sub_path = obj_name[len(prefix) :].strip("/")
+                        sub_path = object_name[len(prefix) :].strip("/")
                         dir_end_idx = sub_path.find("/")
                         if dir_end_idx != -1:
                             dir_name = prefix + sub_path[: dir_end_idx + 1]
@@ -932,7 +1060,7 @@ class MockMinioClient:
                         # it also includes delete markers at the end newwst first
                         versions_list = list(
                             sorted(
-                                bucket_objects[obj_name].items(),
+                                bucket_objects[object_name].items(),
                                 key=lambda i: (
                                     i[1].is_delete_marker,
                                     -i[1].last_modified.timestamp(),
@@ -942,7 +1070,7 @@ class MockMinioClient:
                         for version, obj in versions_list:
                             yield Object(
                                 bucket_name=bucket_name,
-                                object_name=obj_name,
+                                object_name=object_name,
                                 last_modified=obj.last_modified,
                                 version_id=version,
                                 is_latest="true" if obj.is_latest else "false",
@@ -950,11 +1078,11 @@ class MockMinioClient:
                             )
                     else:
                         # only yield if the object is not a delete marker
-                        obj = buckets[bucket_name].get_latest_object(obj_name)
+                        obj = buckets[bucket_name].objects[object_name].get_latest()
                         if not obj.is_delete_marker:
                             yield Object(
                                 bucket_name=bucket_name,
-                                object_name=obj_name,
+                                object_name=object_name,
                                 last_modified=obj.last_modified,
                                 version_id=None,
                                 is_latest=None,
@@ -1023,8 +1151,8 @@ class MockMinioClient:
                         # nothing to do
                         return
                     else:
-                        latest_obj = self.buckets[bucket_name].get_latest_object(
-                            object_name
+                        latest_obj = (
+                            self.buckets[bucket_name].objects[object_name].get_latest()
                         )
                         del self.buckets[bucket_name].objects[object_name][version_id]
                         if version_id == latest_obj.version_id:
@@ -1035,8 +1163,8 @@ class MockMinioClient:
 
                 else:  # version_id is False
                     #
-                    latest_obj = self.buckets[bucket_name].get_latest_object(
-                        object_name
+                    latest_obj = (
+                        self.buckets[bucket_name].objects[object_name].get_latest()
                     )
                     if latest_obj.is_delete_marker:
                         # nothing to do
@@ -1052,11 +1180,8 @@ class MockMinioClient:
                     return
             elif self.get_bucket_versioning(bucket_name).status == SUSPENDED:
                 if version_id:
-                    latest_obj = self.buckets[bucket_name].get_latest_object(
-                        object_name
-                    )
-                    latest_obj = self.buckets[bucket_name].get_latest_object(
-                        object_name
+                    latest_obj = (
+                        self.buckets[bucket_name].objects[object_name].get_latest()
                     )
                     del self.buckets[bucket_name].objects[object_name][version_id]
                     if version_id == latest_obj.version_id:
@@ -1066,8 +1191,8 @@ class MockMinioClient:
                         obj.is_latest = True
 
                 else:
-                    latest_obj = self.buckets[bucket_name].get_latest_object(
-                        object_name
+                    latest_obj = (
+                        self.buckets[bucket_name].objects[object_name].get_latest()
                     )
                     latest_obj.is_delete_marker = True
             else:
