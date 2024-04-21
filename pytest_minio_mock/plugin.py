@@ -364,7 +364,14 @@ class MockMinioClient:
         Returns:
             None: The method writes the object's data to a file and has no return value.
         """
-        the_object = self.get_object(bucket_name, object_name, version_id=version_id)
+        the_object = self.get_object(
+            bucket_name,
+            object_name,
+            version_id=version_id,
+            request_headers=request_headers,
+            sse=sse,
+            extra_query_params=extra_query_params,
+        )
         with open(file_path, "wb") as f:
             f.write(the_object.data)
 
@@ -375,7 +382,7 @@ class MockMinioClient:
         offset: int = 0,
         length: int = 0,
         request_headers=None,
-        ssec=None,
+        sse=None,
         version_id=None,
         extra_query_params=None,
     ):
@@ -393,7 +400,7 @@ class MockMinioClient:
             length (int, optional): The number of bytes of object data to retrieve. Defaults to 0,
                 which means the whole object.
             request_headers (dict, optional): Additional headers for the request. Defaults to None.
-            ssec (optional): Server-side encryption option. Defaults to None.
+            sse (optional): Server-side encryption option. Defaults to None.
             version_id (str | None, optional): The version ID of the object. Defaults to None.
             extra_query_params (dict, optional): Additional query parameters. Defaults to None.
 
@@ -403,7 +410,7 @@ class MockMinioClient:
         self._health_check()
         try:
             the_objects = self.buckets[bucket_name].objects[object_name]
-        except KeyError:
+        except KeyError as exc:
             raise S3Error(
                 message="The specified key does not exist.",
                 resource=f"/{bucket_name}/{object_name}",
@@ -413,7 +420,7 @@ class MockMinioClient:
                 code=404,
                 bucket_name=bucket_name,
                 object_name=object_name,
-            )
+            ) from exc
 
         if version_id and version_id != "null" and not validators.uuid(version_id):
             raise S3Error(
@@ -453,7 +460,7 @@ class MockMinioClient:
 
         try:
             the_object = the_objects[version_id]
-        except KeyError:
+        except KeyError as exc:
             raise S3Error(
                 message="The specified version does not exist",
                 resource=f"/{bucket_name}/{object_name}",
@@ -463,7 +470,7 @@ class MockMinioClient:
                 code=404,
                 bucket_name=bucket_name,
                 object_name=object_name,
-            )
+            ) from exc
 
         if the_object.is_delete_marker:
             raise S3Error(
@@ -591,7 +598,7 @@ class MockMinioClient:
         Returns:
             str: Confirmation message indicating successful upload.
         """
-        obj = self._put_object(
+        _ = self._put_object(
             bucket_name,
             object_name,
             data,
@@ -915,11 +922,14 @@ class MockMinioClient:
                                 yield Object(
                                     bucket_name=bucket_name, object_name=dir_name
                                 )
-                                # bucket_objects.append()
-                            continue  # Skip further processing to prevent adding the full object path
-                    # Directly add the object for recursive listing or if it's a file in the current directory
+                            # Skip further processing to prevent
+                            # adding the full object path
+                            continue
+                    # Directly add the object for recursive listing
+                    # or if it's a file in the current directory
                     if include_version:
-                        # Minio API always sort versions by time, it also includes delete markers at the end newwst first
+                        # Minio API always sort versions by time,
+                        # it also includes delete markers at the end newwst first
                         versions_list = list(
                             sorted(
                                 bucket_objects[obj_name].items(),
