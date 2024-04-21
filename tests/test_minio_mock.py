@@ -140,7 +140,7 @@ def test_removing_object_version_with_versionning_enabled(minio_mock):
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
     assert len(objects) == 1
     assert objects[0].version_id == last_version
-    assert objects[0].is_latest is True
+    assert objects[0].is_latest == "true"
 
     client.fput_object(bucket_name, object_name, file_path)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))

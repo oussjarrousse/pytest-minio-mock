@@ -297,6 +297,70 @@ class MockMinioObject:
         )
         return versions_list
 
+    def remove_object(self, version_id, versioning: VersioningConfig):
+        """
+        Returns
+            nothing
+        """
+        try:
+            if versioning.status == OFF:
+                if version_id:
+                    if version_id in self.versions:
+                        del self.versions[version_id]
+                else:
+                    raise RuntimeError("This should not happen")
+                return
+        except Exception as e:
+            logging.error("remove_object(): Exception")
+            logging.error(e)
+            raise e
+        try:
+            if versioning.status == ENABLED:
+                if version_id:
+                    if version_id not in self.versions:
+                        # version_id does not exist
+                        # nothing to do
+                        return
+                    else:
+                        latest_obj = self.get_latest()
+                        del self.versions[version_id]
+                        if version_id == latest_obj.version_id:
+                            obj = list(self.versions.values())[0]
+                            obj.is_latest = True
+                else:  # version_id is False
+                    latest_obj = self.get_latest()
+                    if latest_obj.is_delete_marker:
+                        # nothing to do
+                        return
+
+                    version_id = str(uuid4())
+
+                    obj = MockMinioObjectVersion(
+                        object_name=self.object_name,
+                        data=b"",
+                        version_id=version_id,
+                        is_delete_marker=True,
+                        is_latest=True,
+                    )
+                    self.put_object_version(version_id=obj.version_id, obj=obj)
+                    return
+            elif versioning.status == SUSPENDED:
+                if version_id:
+                    latest_obj = self.get_latest()
+                    del self.versions[version_id]
+                    if version_id == latest_obj.version_id:
+                        obj = list(self.versions.values())[0]
+                        obj.is_latest = True
+                else:
+                    latest_obj = self.get_latest()
+                    latest_obj.is_delete_marker = True
+            else:
+                raise Exception("unexpected")
+        except Exception as e:
+            logging.error("remove_object(): Exception")
+            logging.error(e)
+            raise
+
 
 class MockMinioBucket:
     """
@@ -383,63 +447,13 @@ class MockMinioBucket:
             return
         try:
             if self.versioning.status == OFF:
-                if version_id:
-                    if version_id in self.objects[object_name]:
-                        del self.objects[object_name][version_id]
-                else:
+                if not version_id:
                     del self.objects[object_name]
-                return
-        except Exception as e:
-            logging.error("remove_object(): Exception")
-            logging.error(e)
-            raise e
-
-        try:
-            if self.versioning.status == ENABLED:
-                if version_id:
-                    if version_id not in self.objects[object_name]:
-                        # version_id does not exist
-                        # nothing to do
-                        return
-                    else:
-                        latest_obj = self.objects[object_name].get_latest()
-                        del self.objects[object_name][version_id]
-                        if version_id == latest_obj.version_id:
-                            obj = list(self.objects[object_name].values())[0]
-                            obj.is_latest = True
-
-                else:  # version_id is False
-                    #
-                    latest_obj = self.objects[object_name].get_latest()
-                    if latest_obj.is_delete_marker:
-                        # nothing to do
-                        return
-
-                    self._put_object(
-                        bucket_name=bucket_name,
-                        object_name=object_name,
-                        data=b"",
-                        length=0,
-                        is_delete_marker=True,
-                    )
                     return
-            elif self.versioning.status == SUSPENDED:
-                if version_id:
-                    latest_obj = self.objects[object_name].get_latest()
-                    del self.objects[object_name][version_id]
-                    if version_id == latest_obj.version_id:
-                        obj = list(self.objects[object_name].values())[0]
-                        obj.is_latest = True
-
-                else:
-                    latest_obj = self.objects[object_name].get_latest()
-                    latest_obj.is_delete_marker = True
-            else:
-                raise Exception("unexpected")
+            return self.objects[object_name].remove_object(version_id, self.versioning)
 
         except Exception as e:
             logging.error("remove_object(): Exception")
-            logging.error(self.buckets)
             logging.error(e)
             raise
 
@@ -465,8 +479,8 @@ class MockMinioBucket:
                 message=e.message,
                 response=e.response,
                 resource=f"/{self.bucket_name}/{object_name}",
-                host_id=e._host_id,
-                request_id=e.request_id,
+                host_id=None,
+                request_id=None,
                 code=e.code,
                 bucket_name=self.bucket_name,
                 object_name=object_name,
@@ -1203,7 +1217,9 @@ class MockMinioClient:
             None: The method has no return value but indicates successful removal.
         """
         self._health_check()
-        return self.buckets[bucket_name].remove_object(object_name, version_id=None)
+        return self.buckets[bucket_name].remove_object(
+            object_name, version_id=version_id
+        )
 
 
 @pytest.fixture
