@@ -285,6 +285,18 @@ class MockMinioObject:
             )
         return the_object_version
 
+    def list_versions(self):
+        versions_list = list(
+            sorted(
+                self._versions.items(),
+                key=lambda i: (
+                    i[1].is_delete_marker,
+                    -i[1].last_modified.timestamp(),
+                ),
+            )
+        )
+        return versions_list
+
 
 class MockMinioBucket:
     """
@@ -339,6 +351,10 @@ class MockMinioBucket:
         # retention = None,
         # legal_hold: bool = False,
     ):
+        """
+        Returns
+            newly added object
+        """
         if object_name not in self.objects:
             self.objects[object_name] = MockMinioObject(object_name)
 
@@ -359,6 +375,73 @@ class MockMinioBucket:
         )
 
         return obj
+
+    def remove_object(self, object_name, version_id=None):
+        """ """
+        if object_name not in self.objects:
+            # object does not exist, so nothing to do
+            return
+        try:
+            if self.versioning.status == OFF:
+                if version_id:
+                    if version_id in self.objects[object_name]:
+                        del self.objects[object_name][version_id]
+                else:
+                    del self.objects[object_name]
+                return
+        except Exception as e:
+            logging.error("remove_object(): Exception")
+            logging.error(e)
+            raise e
+
+        try:
+            if self.versioning.status == ENABLED:
+                if version_id:
+                    if version_id not in self.objects[object_name]:
+                        # version_id does not exist
+                        # nothing to do
+                        return
+                    else:
+                        latest_obj = self.objects[object_name].get_latest()
+                        del self.objects[object_name][version_id]
+                        if version_id == latest_obj.version_id:
+                            obj = list(self.objects[object_name].values())[0]
+                            obj.is_latest = True
+
+                else:  # version_id is False
+                    #
+                    latest_obj = self.objects[object_name].get_latest()
+                    if latest_obj.is_delete_marker:
+                        # nothing to do
+                        return
+
+                    self._put_object(
+                        bucket_name=bucket_name,
+                        object_name=object_name,
+                        data=b"",
+                        length=0,
+                        is_delete_marker=True,
+                    )
+                    return
+            elif self.versioning.status == SUSPENDED:
+                if version_id:
+                    latest_obj = self.objects[object_name].get_latest()
+                    del self.objects[object_name][version_id]
+                    if version_id == latest_obj.version_id:
+                        obj = list(self.objects[object_name].values())[0]
+                        obj.is_latest = True
+
+                else:
+                    latest_obj = self.objects[object_name].get_latest()
+                    latest_obj.is_delete_marker = True
+            else:
+                raise Exception("unexpected")
+
+        except Exception as e:
+            logging.error("remove_object(): Exception")
+            logging.error(self.buckets)
+            logging.error(e)
+            raise
 
     def get_object(self, object_name, version_id):
         try:
@@ -389,6 +472,67 @@ class MockMinioBucket:
                 object_name=object_name,
             )
         return the_object_version
+
+    def list_objects(
+        self,
+        prefix="",
+        recursive=False,
+        start_after="",
+        include_version=False,
+    ):
+        """
+        Returns
+            Iterator of MockMinioObjectVersions of the current bucket
+        """
+        # Initialization
+        # bucket_objects = []
+        seen_prefixes = set()
+
+        for object_name, obj in self.objects.items():
+            if object_name.startswith(prefix) and (
+                start_after == "" or object_name > start_after
+            ):
+                # Handle non-recursive listing by identifying and adding unique directory names
+                if not recursive:
+                    sub_path = object_name[len(prefix) :].strip("/")
+                    dir_end_idx = sub_path.find("/")
+                    if dir_end_idx != -1:
+                        dir_name = prefix + sub_path[: dir_end_idx + 1]
+                        if dir_name not in seen_prefixes:
+                            seen_prefixes.add(dir_name)
+                            yield Object(
+                                bucket_name=self.bucket_name, object_name=dir_name
+                            )
+                        # Skip further processing to prevent
+                        # adding the full object path
+                        continue
+                # Directly add the object for recursive listing
+                # or if it's a file in the current directory
+                if include_version:
+                    # Minio API always sort versions by time,
+                    # it also includes delete markers at the end newwst first
+                    versions_list = obj.list_versions()
+                    for version, obj_version in versions_list:
+                        yield Object(
+                            bucket_name=self.bucket_name,
+                            object_name=object_name,
+                            last_modified=obj_version.last_modified,
+                            version_id=version,
+                            is_latest="true" if obj_version.is_latest else "false",
+                            is_delete_marker=obj_version.is_delete_marker,
+                        )
+                else:
+                    obj_version = obj.get_latest()
+                    # only yield if the object is not a delete marker
+                    if not obj_version.is_delete_marker:
+                        yield Object(
+                            bucket_name=self.bucket_name,
+                            object_name=object_name,
+                            last_modified=obj_version.last_modified,
+                            version_id=None,
+                            is_latest=None,
+                            is_delete_marker=obj_version.is_delete_marker,
+                        )
 
 
 class MockMinioServer:
@@ -1022,73 +1166,6 @@ class MockMinioClient:
               that match the specified conditions.
         """
 
-        def _list_objects(
-            buckets,
-            bucket_name,
-            prefix="",
-            recursive=False,
-            start_after="",
-            include_version=False,
-        ):
-            # Initialization
-            bucket_objects = buckets[bucket_name].objects
-            # bucket_objects = []
-            seen_prefixes = set()
-
-            for object_name in bucket_objects.keys():
-                if object_name.startswith(prefix) and (
-                    start_after == "" or object_name > start_after
-                ):
-                    # Handle non-recursive listing by identifying and adding unique directory names
-                    if not recursive:
-                        sub_path = object_name[len(prefix) :].strip("/")
-                        dir_end_idx = sub_path.find("/")
-                        if dir_end_idx != -1:
-                            dir_name = prefix + sub_path[: dir_end_idx + 1]
-                            if dir_name not in seen_prefixes:
-                                seen_prefixes.add(dir_name)
-                                yield Object(
-                                    bucket_name=bucket_name, object_name=dir_name
-                                )
-                            # Skip further processing to prevent
-                            # adding the full object path
-                            continue
-                    # Directly add the object for recursive listing
-                    # or if it's a file in the current directory
-                    if include_version:
-                        # Minio API always sort versions by time,
-                        # it also includes delete markers at the end newwst first
-                        versions_list = list(
-                            sorted(
-                                bucket_objects[object_name].items(),
-                                key=lambda i: (
-                                    i[1].is_delete_marker,
-                                    -i[1].last_modified.timestamp(),
-                                ),
-                            )
-                        )
-                        for version, obj in versions_list:
-                            yield Object(
-                                bucket_name=bucket_name,
-                                object_name=object_name,
-                                last_modified=obj.last_modified,
-                                version_id=version,
-                                is_latest="true" if obj.is_latest else "false",
-                                is_delete_marker=obj.is_delete_marker,
-                            )
-                    else:
-                        # only yield if the object is not a delete marker
-                        obj = buckets[bucket_name].objects[object_name].get_latest()
-                        if not obj.is_delete_marker:
-                            yield Object(
-                                bucket_name=bucket_name,
-                                object_name=object_name,
-                                last_modified=obj.last_modified,
-                                version_id=None,
-                                is_latest=None,
-                                is_delete_marker=obj.is_delete_marker,
-                            )
-
         try:
             if bucket_name not in self.buckets:
                 raise S3Error(
@@ -1101,9 +1178,8 @@ class MockMinioClient:
                     bucket_name=bucket_name,
                     object_name=None,
                 )
-            return _list_objects(
-                self.buckets,
-                bucket_name,
+            return self.buckets[bucket_name].list_objects(
+                # self.buckets,
                 prefix,
                 recursive,
                 start_after,
@@ -1127,82 +1203,7 @@ class MockMinioClient:
             None: The method has no return value but indicates successful removal.
         """
         self._health_check()
-        if object_name not in self.buckets[bucket_name].objects:
-            # object does not exist: nothing to do
-            return
-        try:
-            if self.get_bucket_versioning(bucket_name).status == OFF:
-                if version_id:
-                    if version_id in self.buckets[bucket_name].objects[object_name]:
-                        del self.buckets[bucket_name].objects[object_name][version_id]
-                else:
-                    del self.buckets[bucket_name].objects[object_name]
-                return
-        except Exception:
-            logging.error("remove_object(): Exception")
-            logging.error(self.buckets)
-            raise
-
-        try:
-            if self.get_bucket_versioning(bucket_name).status == ENABLED:
-                if version_id:
-                    if version_id not in self.buckets[bucket_name].objects[object_name]:
-                        # version_id does not exist
-                        # nothing to do
-                        return
-                    else:
-                        latest_obj = (
-                            self.buckets[bucket_name].objects[object_name].get_latest()
-                        )
-                        del self.buckets[bucket_name].objects[object_name][version_id]
-                        if version_id == latest_obj.version_id:
-                            obj = list(
-                                self.buckets[bucket_name].objects[object_name].values()
-                            )[0]
-                            obj.is_latest = True
-
-                else:  # version_id is False
-                    #
-                    latest_obj = (
-                        self.buckets[bucket_name].objects[object_name].get_latest()
-                    )
-                    if latest_obj.is_delete_marker:
-                        # nothing to do
-                        return
-
-                    self._put_object(
-                        bucket_name=bucket_name,
-                        object_name=object_name,
-                        data=b"",
-                        length=0,
-                        is_delete_marker=True,
-                    )
-                    return
-            elif self.get_bucket_versioning(bucket_name).status == SUSPENDED:
-                if version_id:
-                    latest_obj = (
-                        self.buckets[bucket_name].objects[object_name].get_latest()
-                    )
-                    del self.buckets[bucket_name].objects[object_name][version_id]
-                    if version_id == latest_obj.version_id:
-                        obj = list(
-                            self.buckets[bucket_name].objects[object_name].values()
-                        )[0]
-                        obj.is_latest = True
-
-                else:
-                    latest_obj = (
-                        self.buckets[bucket_name].objects[object_name].get_latest()
-                    )
-                    latest_obj.is_delete_marker = True
-            else:
-                raise Exception("unexpected")
-
-        except Exception as e:
-            logging.error("remove_object(): Exception")
-            logging.error(self.buckets)
-            logging.error(e)
-            raise
+        return self.buckets[bucket_name].remove_object(object_name, version_id=None)
 
 
 @pytest.fixture
