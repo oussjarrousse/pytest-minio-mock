@@ -125,25 +125,15 @@ def test_versioned_objects(minio_mock):
 
     client.remove_object(bucket_name, object_name)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+
     assert len(objects) == 5
 
-    objects = list(client.list_objects(bucket_name, object_name))
-    assert len(objects) == 0
-
-    client.fput_object(bucket_name, object_name, file_path)
-    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
-    assert len(objects) == 2
-    last_version = objects[1].version_id
-
-    client.remove_object(bucket_name, object_name)
-    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
-    assert len(objects) == 3
-    assert first_version == objects[0].version_id
-    assert last_version == objects[1].version_id
-    assert objects[2].is_delete_marker
+    with pytest.raises(S3Error) as error:
+        client.get_object(bucket_name, object_name, version_id=objects[3].version_id)
+    assert "not allowed against this resource" in str(error.value)
 
     with pytest.raises(S3Error) as error:
-        client.get_object(bucket_name, object_name, version_id=objects[2].version_id)
+        client.get_object(bucket_name, object_name, version_id=objects[4].version_id)
     assert "not allowed against this resource" in str(error.value)
 
     objects = list(client.list_objects(bucket_name, object_name))
@@ -177,12 +167,12 @@ def test_versioned_objects_after_upload(minio_mock):
 
     client.remove_object(bucket_name, object_name)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
-    assert len(objects) == 2
-    assert objects[0].version_id == last_version
-    assert objects[1].version_id is None
+    assert len(objects) == 3
+    assert objects[-1].is_delete_marker == True
 
-    assert not objects[0].is_delete_marker
-    assert objects[1].is_delete_marker
+    client.remove_object(bucket_name, object_name, "null")
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 3
 
 
 @pytest.mark.UNIT

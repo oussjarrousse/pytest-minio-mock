@@ -122,6 +122,8 @@ class MockMinioBucket:
 
     def get_latest_object(self, object_name):
         """returns the latest_object"""
+        if not self._objects[object_name]:
+            return None
         for version in self._objects[object_name]:
             obj = self._objects[object_name][version]
             if obj.is_latest:
@@ -587,10 +589,13 @@ class MockMinioClient:
             if object_name not in self.buckets[bucket_name].objects:
                 self.buckets[bucket_name].objects[object_name] = {}
             else:
-                for old_version in self.buckets[bucket_name].objects[object_name]:
-                    self.buckets[bucket_name].objects[object_name][
-                        old_version
-                    ]._is_latest = False
+                latest_obj = self.buckets[bucket_name].get_latest_object(object_name)
+                if latest_obj:
+                    latest_obj._is_latest = False
+                # for old_version in self.buckets[bucket_name].objects[object_name]:
+                #     self.buckets[bucket_name].objects[object_name][
+                #         old_version
+                #     ]._is_latest = False
             self.buckets[bucket_name].objects[object_name][version] = obj
         return obj
 
@@ -977,12 +982,9 @@ class MockMinioClient:
                 if version_id:
                     if version_id in self.buckets[bucket_name].objects[object_name]:
                         del self.buckets[bucket_name].objects[object_name][version_id]
-                    else:
-                        # nothing to do
-                        return
                 else:
                     del self.buckets[bucket_name].objects[object_name]
-                    return
+                return
         except Exception:
             logging.error("remove_object(): Exception")
             logging.error(self.buckets)
@@ -995,22 +997,16 @@ class MockMinioClient:
                         # version_id does not exist
                         # nothing to do
                         return
-                    # elif (
-                    #     self.buckets[bucket_name]
-                    #     .objects[object_name][version_id]
-                    #     .is_delete_marker
-                    #     == True
-                    # ):
-                    #     de
-                    # version_id exists but delete_market is already True
-                    # nothing to do
-                    # raise Exception("TODO")
                     else:
-                        # mark the object as deleted
-                        # self.buckets[bucket_name].objects[object_name][
-                        #     version_id
-                        # ].is_delete_marker = True
+                        latest_obj = self.buckets[bucket_name].get_latest_object(
+                            object_name
+                        )
                         del self.buckets[bucket_name].objects[object_name][version_id]
+                        if version_id == latest_obj.version_id:
+                            obj = list(
+                                self.buckets[bucket_name].objects[object_name].values()
+                            )[0]
+                            obj._is_latest = True
 
                 else:  # version_id is False
                     #
@@ -1028,6 +1024,33 @@ class MockMinioClient:
                         length=0,
                         is_delete_marker=True,
                     )
+                    return
+            elif self.get_bucket_versioning(bucket_name).status == SUSPENDED:
+                if version_id:
+                    latest_obj = self.buckets[bucket_name].get_latest_object(
+                        object_name
+                    )
+                    # latest_obj._is_latest = False
+                    # obj = self.buckets[bucket_name].objects[version_id]
+                    # obj._is_latest = True
+                    # obj.is_delete_marker = True
+                    latest_obj = self.buckets[bucket_name].get_latest_object(
+                        object_name
+                    )
+                    del self.buckets[bucket_name].objects[version_id]
+                    if version_id == latest_obj.version_id:
+                        obj = list(
+                            self.buckets[bucket_name].objects[object_name].values()
+                        )[0]
+                        obj._is_latest = True
+
+                else:
+                    latest_obj = self.buckets[bucket_name].get_latest_object(
+                        object_name
+                    )
+                    latest_obj.is_delete_marker = True
+            else:
+                raise Exception("unexpected")
 
         except Exception as e:
             logging.error("remove_object(): Exception")
