@@ -112,8 +112,17 @@ class MockMinioObject:
         """is this object marked latest"""
         return self._is_latest
 
+    @is_latest.setter
+    def is_latest(self, value):
+        """Set the value of is_latest"""
+        self._is_latest = value
+
 
 class MockMinioBucket:
+    """
+    Represents a mock Bucket in Minio storage.
+    """
+
     def __init__(self, versioning: VersioningConfig, location=None, object_lock=False):
         self._versioning = versioning
         self._objects = {}
@@ -343,7 +352,7 @@ class MockMinioClient:
                 request. Defaults to None.
             sse (optional): Server-side encryption option. Defaults to None, as it's not used in
                 the mock.
-            version_id (str, optional): The version ID of the object to download. Defaults to
+            version_id (str | None, optional): The version ID of the object to download. Defaults to
                 None.
             extra_query_params (dict, optional): Additional query parameters for the request.
                 Defaults to None.
@@ -385,7 +394,7 @@ class MockMinioClient:
                 which means the whole object.
             request_headers (dict, optional): Additional headers for the request. Defaults to None.
             ssec (optional): Server-side encryption option. Defaults to None.
-            version_id (str, optional): The version ID of the object. Defaults to None.
+            version_id (str | None, optional): The version ID of the object. Defaults to None.
             extra_query_params (dict, optional): Additional query parameters. Defaults to None.
 
         Returns:
@@ -393,7 +402,7 @@ class MockMinioClient:
         """
         self._health_check()
         try:
-            the_object = self.buckets[bucket_name].objects[object_name]
+            the_objects = self.buckets[bucket_name].objects[object_name]
         except KeyError:
             raise S3Error(
                 message="The specified key does not exist.",
@@ -418,23 +427,32 @@ class MockMinioClient:
                 object_name=object_name,
             )
 
-        # Do not check whether the bucket is versioned or not, because even
-        # if versioning is suspended, object could have had versions, and we can
-        # interact with them. And if versioning is Off, then None is a valid
-        # version too, and we can work with it
-
-        # If version == None, try to find the first one that does not
-        # correspond to a deleted object. Note that it can still be None after
-        # that if versioning is Off, but that is not a problem.
+        # If version == None, give version_id a value
         if not version_id:
+            if not the_objects:
+                raise S3Error(
+                    # code=NoSuchKey
+                    message="The specified key does not exist.",
+                    resource=f"/{bucket_name}/{object_name}",
+                    request_id=None,
+                    host_id=None,
+                    response="mocked_response",
+                    code=404,
+                    bucket_name=bucket_name,
+                    object_name=object_name,
+                )
+
+            # if versioning is disabled, look for the object with version_id = "null"
             if self.get_bucket_versioning(bucket_name).status == OFF:
                 version_id = "null"
+            # if versioning is enabled or suspended, get the version_id of the latest_object
             else:
                 latest_object = self.buckets[bucket_name].get_latest_object(object_name)
-                version_id = latest_object.version_id
+                if latest_object:
+                    version_id = latest_object.version_id
 
         try:
-            the_object = the_object[version_id]
+            the_object = the_objects[version_id]
         except KeyError:
             raise S3Error(
                 message="The specified version does not exist",
@@ -536,6 +554,57 @@ class MockMinioClient:
                 part_size=part_size,
             )
 
+    def put_object(
+        self,
+        bucket_name: str,
+        object_name: str,
+        data,
+        length: int,
+        content_type: str = "application/octet-stream",
+        metadata=None,
+        sse=None,
+        progress=None,
+        part_size: int = 0
+        # num_parallel_uploads: int = 3,
+        # tags = None,
+        # retention = None,
+        # legal_hold: bool = False,
+    ):
+        """
+        Simulates uploading an object to the mock Minio server.
+
+        Stores an object in a specified bucket with the given data.
+
+        Args:
+            bucket_name (str): The name of the bucket to upload to.
+            object_name (str): The object name to create in the bucket.
+            data: The data to upload. Can be bytes or a file-like object.
+            length (int): The length of the data to upload.
+            content_type (str, optional): The content type of the object. Defaults to
+                "application/octet-stream".
+            metadata (dict, optional): A dictionary of additional metadata for the object. Defaults
+                 to None.
+            sse (optional): Server-side encryption option. Defaults to None.
+            progress (optional): Callback function to monitor progress. Defaults to None.
+            part_size (int, optional): The size of each part in multi-part upload. Defaults to 0.
+
+        Returns:
+            str: Confirmation message indicating successful upload.
+        """
+        obj = self._put_object(
+            bucket_name,
+            object_name,
+            data,
+            length,
+            content_type,
+            metadata,
+            sse,
+            progress,
+            part_size,
+        )
+
+        return "Upload successful"
+
     def _put_object(
         self,
         bucket_name: str,
@@ -591,64 +660,10 @@ class MockMinioClient:
             else:
                 latest_obj = self.buckets[bucket_name].get_latest_object(object_name)
                 if latest_obj:
-                    latest_obj._is_latest = False
-                # for old_version in self.buckets[bucket_name].objects[object_name]:
-                #     self.buckets[bucket_name].objects[object_name][
-                #         old_version
-                #     ]._is_latest = False
+                    latest_obj.is_latest = False
+
             self.buckets[bucket_name].objects[object_name][version] = obj
         return obj
-
-    def put_object(
-        self,
-        bucket_name: str,
-        object_name: str,
-        data,
-        length: int,
-        content_type: str = "application/octet-stream",
-        metadata=None,
-        sse=None,
-        progress=None,
-        part_size: int = 0
-        # num_parallel_uploads: int = 3,
-        # tags = None,
-        # retention = None,
-        # legal_hold: bool = False,
-    ):
-        """
-        Simulates uploading an object to the mock Minio server.
-
-        Stores an object in a specified bucket with the given data.
-
-        Args:
-            bucket_name (str): The name of the bucket to upload to.
-            object_name (str): The object name to create in the bucket.
-            data: The data to upload. Can be bytes or a file-like object.
-            length (int): The length of the data to upload.
-            content_type (str, optional): The content type of the object. Defaults to
-                "application/octet-stream".
-            metadata (dict, optional): A dictionary of additional metadata for the object. Defaults
-                 to None.
-            sse (optional): Server-side encryption option. Defaults to None.
-            progress (optional): Callback function to monitor progress. Defaults to None.
-            part_size (int, optional): The size of each part in multi-part upload. Defaults to 0.
-
-        Returns:
-            str: Confirmation message indicating successful upload.
-        """
-        obj = self._put_object(
-            bucket_name,
-            object_name,
-            data,
-            length,
-            content_type,
-            metadata,
-            sse,
-            progress,
-            part_size,
-        )
-
-        return "Upload successful"
 
     def get_presigned_url(
         self,
@@ -676,7 +691,7 @@ class MockMinioClient:
                 Defaults to 7 days.
             response_headers (dict, optional): Headers to include in the response. Defaults to None.
             request_date (datetime, optional): The date of the request. Defaults to None.
-            version_id (str, optional): The version ID of the object. Defaults to None.
+            version_id (str | None, optional): The version ID of the object. Defaults to None.
             extra_query_params (dict, optional): Additional query parameters to include in the
                 presigned URL. Defaults to None.
 
@@ -730,7 +745,7 @@ class MockMinioClient:
                 Defaults to 7 days.
             response_headers (dict, optional): Headers to include in the response. Defaults to None.
             request_date (datetime, optional): The date of the request. Defaults to None.
-            version_id (str, optional): The version ID of the object. Defaults to None.
+            version_id (str | None, optional): The version ID of the object. Defaults to None.
             extra_query_params (dict, optional): Additional query parameters to include in the
                 presigned URL. Defaults to None.
 
@@ -968,7 +983,7 @@ class MockMinioClient:
         Args:
             bucket_name (str): The name of the bucket.
             object_name (str): The name of the object to remove.
-            version_id (str, optional): The version to delete.
+            version_id (str | None, optional): The version to delete.
 
         Returns:
             None: The method has no return value but indicates successful removal.
@@ -1006,7 +1021,7 @@ class MockMinioClient:
                             obj = list(
                                 self.buckets[bucket_name].objects[object_name].values()
                             )[0]
-                            obj._is_latest = True
+                            obj.is_latest = True
 
                 else:  # version_id is False
                     #
@@ -1030,10 +1045,6 @@ class MockMinioClient:
                     latest_obj = self.buckets[bucket_name].get_latest_object(
                         object_name
                     )
-                    # latest_obj._is_latest = False
-                    # obj = self.buckets[bucket_name].objects[version_id]
-                    # obj._is_latest = True
-                    # obj.is_delete_marker = True
                     latest_obj = self.buckets[bucket_name].get_latest_object(
                         object_name
                     )
@@ -1042,7 +1053,7 @@ class MockMinioClient:
                         obj = list(
                             self.buckets[bucket_name].objects[object_name].values()
                         )[0]
-                        obj._is_latest = True
+                        obj.is_latest = True
 
                 else:
                     latest_obj = self.buckets[bucket_name].get_latest_object(

@@ -82,6 +82,8 @@ def test_versioned_objects(minio_mock):
     client.remove_object(bucket_name, object_name, version_id="null")
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
     assert len(objects) == 0
+    obj = client.get_object(bucket_name, object_name)
+    assert obj
 
     # Versioning Enabled
     client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
