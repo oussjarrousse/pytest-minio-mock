@@ -333,7 +333,7 @@ class MockMinioClient:
         file_path,
         request_headers=None,
         sse=None,
-        version_id: str | None = None,
+        version_id=None,
         extra_query_params=None,
     ):
         """
@@ -376,7 +376,7 @@ class MockMinioClient:
         length: int = 0,
         request_headers=None,
         ssec=None,
-        version_id: str | None = None,
+        version_id=None,
         extra_query_params=None,
     ):
         """
@@ -673,7 +673,7 @@ class MockMinioClient:
         expires=datetime.timedelta(days=7),
         response_headers=None,
         request_date=None,
-        version_id: str | None = None,
+        version_id=None,
         extra_query_params=None,
     ):
         """
@@ -729,7 +729,7 @@ class MockMinioClient:
         expires=datetime.timedelta(days=7),
         response_headers=None,
         request_date=None,
-        version_id: str | None = None,
+        version_id=None,
         extra_query_params=None,
     ):
         """
