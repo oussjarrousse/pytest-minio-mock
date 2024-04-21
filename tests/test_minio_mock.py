@@ -3,7 +3,55 @@ import sys
 import pytest
 import validators
 from minio import Minio
+from minio.commonconfig import ENABLED
 from minio.error import S3Error
+from minio.versioningconfig import OFF
+from minio.versioningconfig import SUSPENDED
+from minio.versioningconfig import VersioningConfig
+
+from pytest_minio_mock.plugin import MockMinioBucket
+from pytest_minio_mock.plugin import MockMinioObject
+
+
+@pytest.mark.UNIT
+class TestsMockMinioObject:
+    @pytest.mark.UNIT
+    def test_mock_minio_object_init(self):
+        mock_minio_object = MockMinioObject("test-object")
+        assert mock_minio_object.versions == {}
+
+
+@pytest.mark.UNIT
+class TestsMockMinioBucket:
+    @pytest.mark.UNIT
+    def test_mock_minio_bucket_init(self):
+        mock_minio_bucket = MockMinioBucket(
+            bucket_name="test-bucket", versioning=VersioningConfig()
+        )
+        assert mock_minio_bucket.bucket_name == "test-bucket"
+        assert mock_minio_bucket.versioning.status == OFF
+        assert mock_minio_bucket.objects == {}
+
+        versioning_config = VersioningConfig(ENABLED)
+        mock_minio_bucket = MockMinioBucket(
+            bucket_name="test-bucket", versioning=versioning_config
+        )
+        assert isinstance(mock_minio_bucket._versioning, VersioningConfig)
+        assert mock_minio_bucket.versioning.status == ENABLED
+
+    @pytest.mark.UNIT
+    def test_versioning(self):
+        mock_minio_bucket = MockMinioBucket(
+            bucket_name="test-bucket", versioning=VersioningConfig()
+        )
+        versioning_config = mock_minio_bucket.versioning
+        assert isinstance(versioning_config, VersioningConfig)
+        assert versioning_config.status == OFF
+        versioning_config = VersioningConfig(status=ENABLED)
+        mock_minio_bucket.versioning = versioning_config
+        versioning_config = mock_minio_bucket.versioning
+        assert isinstance(versioning_config, VersioningConfig)
+        assert versioning_config.status == ENABLED
 
 
 @pytest.mark.UNIT
@@ -15,36 +63,210 @@ def test_make_bucket(minio_mock):
     assert client.bucket_exists(bucket_name), "Bucket should exist after creation"
 
 
-@pytest.mark.UNIT
 @pytest.mark.API
-def test_adding_and_removing_objects(minio_mock):
+@pytest.mark.FUNC
+def test_putting_and_removing_objects_no_versionning(minio_mock):
+    # simple thing
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_path = "tests/fixtures/maya.jpeg"
 
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
-    client.make_bucket(bucket_name)
     client.fput_object(bucket_name, object_name, file_path)
 
     assert (
-        object_name in client.buckets[bucket_name]
+        object_name in client.buckets[bucket_name].objects
     ), "Object should be in the bucket after upload"
+    objects = list(client.list_objects(bucket_name))
+    assert len(objects) == 1
     client.remove_object(bucket_name, object_name)
+    assert object_name not in client.buckets[bucket_name].objects
+    objects = list(client.list_objects(bucket_name))
+    assert len(objects) == 0
 
-    assert object_name not in client.buckets[bucket_name]
+    # even if include version is True nothing should change because versioning is OFF
+    objects = list(client.list_objects(bucket_name, include_version=True))
+    assert len(objects) == 0
+
+    # test retrieving object after it has been removed
+    with pytest.raises(S3Error) as error:
+        _ = client.get_object(bucket_name, object_name)
+    assert "The specified key does not exist" in str(error.value)
+
+
+@pytest.mark.API
+@pytest.mark.FUNC
+def test_putting_objects_with_versionning_enabled(minio_mock):
+    client = Minio("http://local.host:9000")
+    bucket_name = "test-bucket"
+    object_name = "test-object"
+    file_path = "tests/fixtures/maya.jpeg"
+    client.make_bucket(bucket_name)
+    # Versioning Enabled
+    client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
+    # Add two objects
+    client.fput_object(bucket_name, object_name, file_path)
+    client.fput_object(bucket_name, object_name, file_path)
+    # they should be two versions of the same object
+    # check list_objects with include_version=False returns only one object with is_latest=True
+    objects = list(client.list_objects(bucket_name, object_name, include_version=False))
+    assert len(objects) == 1
+    # check that versions are stored correctly and retrieved correctly
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 2
+
+
+@pytest.mark.API
+@pytest.mark.FUNC
+def test_removing_object_version_with_versionning_enabled(minio_mock):
+    client = Minio("http://local.host:9000")
+    bucket_name = "test-bucket"
+    object_name = "test-object"
+    file_path = "tests/fixtures/maya.jpeg"
+    client.make_bucket(bucket_name)
+
+    # Versioning Enabled
+    client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
+    # Add two objects
+    client.fput_object(bucket_name, object_name, file_path)
+    client.fput_object(bucket_name, object_name, file_path)
+
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    first_version = objects[0].version_id
+    last_version = objects[1].version_id
+
+    client.remove_object(bucket_name, object_name, version_id=first_version)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 1
+    assert objects[0].version_id == last_version
+    assert objects[0].is_latest == "true"
+
+    client.fput_object(bucket_name, object_name, file_path)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 2
+    first_version = objects[0].version_id
+    assert first_version != last_version
+
+
+@pytest.mark.API
+@pytest.mark.FUNC
+def test_putting_and_removing_and_listing_bjecst_with_versionning_enabled(minio_mock):
+    client = Minio("http://local.host:9000")
+    bucket_name = "test-bucket"
+    object_name = "test-object"
+    file_path = "tests/fixtures/maya.jpeg"
+    client.make_bucket(bucket_name)
+
+    # Versioning Enabled
+    client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
+    # Add two objects
+    client.fput_object(bucket_name, object_name, file_path)
+    client.fput_object(bucket_name, object_name, file_path)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 2
+    # removing the object with versioning enabled will add a delete marker
+    client.remove_object(bucket_name, object_name)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 3
+    assert objects[-1].is_delete_marker == True
+
+    # removing the object again will have no effect
+    client.remove_object(bucket_name, object_name)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 3
+
+    # listing an object marked for deletion will return an empty list
+    objects = list(client.list_objects(bucket_name, object_name))
+    assert len(objects) == 0
+
+    # putting a new version after deletion will add a new version
+    client.fput_object(bucket_name, object_name, file_path)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 4
+
+    objects = list(client.list_objects(bucket_name, object_name))
+    assert len(objects) == 1
+
+    # removing the object again with versioning enabled will add a new deletion marker
+    client.remove_object(bucket_name, object_name)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 5
+
+    # trying to an object marked for deletion by version will raise an exception
+    with pytest.raises(S3Error) as error:
+        client.get_object(bucket_name, object_name, version_id=objects[3].version_id)
+    assert "not allowed against this resource" in str(error.value)
+
+    # trying to an object marked for deletion by version will raise an exception
+    with pytest.raises(S3Error) as error:
+        client.get_object(bucket_name, object_name, version_id=objects[4].version_id)
+    assert "not allowed against this resource" in str(error.value)
+
+    objects = list(client.list_objects(bucket_name, object_name))
+    assert len(objects) == 0
+
+
+@pytest.mark.API
+@pytest.mark.FUNC
+def test_versioned_objects_after_upload(minio_mock):
+    bucket_name = "test-bucket"
+    object_name = "test-object"
+    file_path = "tests/fixtures/maya.jpeg"
+
+    client = Minio("http://local.host:9000")
+    client.make_bucket(bucket_name)
+    client.fput_object(bucket_name, object_name, file_path)
+    client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 1
+    first_version = objects[0].version_id
+    assert first_version == "null"
+
+    client.fput_object(bucket_name, object_name, file_path)
+    client.fput_object(bucket_name, object_name, file_path)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    last_version = objects[1].version_id
+    assert len(objects) == 3
+    assert objects[-1].version_id == "null"
+    assert last_version is not None
+    client.set_bucket_versioning(bucket_name, VersioningConfig(SUSPENDED))
+
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+
+    client.remove_object(bucket_name, object_name, objects[0].version_id)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 2
+
+    client.remove_object(bucket_name, object_name)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 2
+    assert objects[-1].is_delete_marker == True
+
+    client.remove_object(bucket_name, object_name, "null")
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 1
 
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_file_download(minio_mock):
+@pytest.mark.FUNC
+@pytest.mark.parametrize("versioned", (True, False))
+def test_file_download(minio_mock, versioned):
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_content = b"Test file content"
     length = sys.getsizeof(file_content)
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
+    version = None
+    if versioned:
+        client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
     client.put_object(bucket_name, object_name, file_content, length)
+    if versioned:
+        version = list(
+            client.list_objects(bucket_name, object_name, include_version=True)
+        )[0].version_id
 
     response = client.get_object(bucket_name, object_name)
     downloaded_content = response.data
@@ -52,6 +274,13 @@ def test_file_download(minio_mock):
     assert (
         downloaded_content == file_content
     ), "Downloaded content should match the original"
+    if versioned:
+        response = client.get_object(bucket_name, object_name, version_id=version)
+        downloaded_content = response.data
+
+        assert (
+            downloaded_content == file_content
+        ), "Downloaded content should match the original"
 
 
 @pytest.mark.UNIT
@@ -65,17 +294,39 @@ def test_bucket_exists(minio_mock):
 
 @pytest.mark.UNIT
 @pytest.mark.API
-def test_get_presigned_url(minio_mock):
+def test_bucket_versioning(minio_mock):
+    bucket_name = "existing-bucket"
+    client = Minio("http://local.host:9000")
+    client.make_bucket(bucket_name)
+    assert client.get_bucket_versioning(bucket_name).status == "Off"
+    client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
+    assert client.get_bucket_versioning(bucket_name).status == "Enabled"
+    client.set_bucket_versioning(bucket_name, VersioningConfig("Suspended"))
+    assert client.get_bucket_versioning(bucket_name).status == "Suspended"
+
+
+@pytest.mark.UNIT
+@pytest.mark.API
+@pytest.mark.parametrize("versioned", (True, False))
+def test_get_presigned_url(minio_mock, versioned):
     bucket_name = "test-bucket"
     object_name = "test-object"
     file_path = "tests/fixtures/maya.jpeg"
 
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
-    client.make_bucket(bucket_name)
+    version = None
+    if versioned:
+        client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
     client.fput_object(bucket_name, object_name, file_path)
-    url = client.get_presigned_url("GET", bucket_name, object_name)
+    if versioned:
+        version = list(
+            client.list_objects(bucket_name, object_name, include_version=True)
+        )[-1].version_id
+    url = client.get_presigned_url("GET", bucket_name, object_name, version_id=version)
     assert validators.url(url)
+    if version:
+        assert url.endswith(f"?versionId={version}")
 
 
 @pytest.mark.UNIT
@@ -125,7 +376,7 @@ def test_list_objects(minio_mock):
     client = Minio("http://local.host:9000")
 
     with pytest.raises(S3Error):
-        objects = client.list_objects("no-such-bucket")
+        _ = client.list_objects("no-such-bucket")
 
     bucket_name = "new-bucket"
     client.make_bucket(bucket_name)
@@ -138,8 +389,10 @@ def test_list_objects(minio_mock):
     client.put_object(bucket_name, "object4", data=b"object4 data", length=11)
 
     # Test recursive listing
-    objects_recursive = client.list_objects(bucket_name, prefix="a/", recursive=True)
-    # assert len(objects_recursive) == 3, "Expected 3 objects under 'a/' with recursion"
+    objects_recursive = list(
+        client.list_objects(bucket_name, prefix="a/", recursive=True)
+    )
+    assert len(objects_recursive) == 3, "Expected 3 objects under 'a/' with recursion"
     # Check that all expected paths are returned
     assert set(obj.object_name for obj in objects_recursive) == {
         "a/b/c/object1",
