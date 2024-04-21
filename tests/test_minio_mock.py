@@ -158,14 +158,14 @@ def test_versioned_objects_after_upload(minio_mock):
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
     assert len(objects) == 1
     first_version = objects[0].version_id
-    assert first_version is "null"
+    assert first_version == "null"
 
     client.fput_object(bucket_name, object_name, file_path)
     client.fput_object(bucket_name, object_name, file_path)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
     last_version = objects[1].version_id
     assert len(objects) == 3
-    assert objects[-1].version_id is "null"
+    assert objects[-1].version_id == "null"
     assert last_version is not None
     client.set_bucket_versioning(bucket_name, VersioningConfig(SUSPENDED))
 
