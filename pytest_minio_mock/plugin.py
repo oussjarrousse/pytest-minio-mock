@@ -120,7 +120,7 @@ class MockMinioBucket:
         self._location = location
         self._object_lock = object_lock
 
-    def _get_latest_object(self, object_name):
+    def get_latest_object(self, object_name):
         """returns the latest_object"""
         for version in self._objects[object_name]:
             obj = self._objects[object_name][version]
@@ -322,7 +322,7 @@ class MockMinioClient:
         file_path,
         request_headers=None,
         sse=None,
-        version_id="null",
+        version_id: str | None = None,
         extra_query_params=None,
     ):
         """
@@ -365,7 +365,7 @@ class MockMinioClient:
         length: int = 0,
         request_headers=None,
         ssec=None,
-        version_id="null",
+        version_id: str | None = None,
         extra_query_params=None,
     ):
         """
@@ -421,38 +421,15 @@ class MockMinioClient:
         # interact with them. And if versioning is Off, then None is a valid
         # version too, and we can work with it
 
-        # If version == "null", try to find the first one that does not
+        # If version == None, try to find the first one that does not
         # correspond to a deleted object. Note that it can still be None after
         # that if versioning is Off, but that is not a problem.
-        if version_id == "null":
-            found_obj = None
-            # reversed to start by the newest object
-            #
-            #
-            #
-            #
-            #
-            for version_id, obj in reversed(the_object.items()):
-                if not obj.is_delete_marker:
-                    found_obj = obj
-                    break
-            #
-            #
-            #
-            #
-            #
-            #
-            if not found_obj:
-                raise S3Error(
-                    message="The specified key does not exist.",
-                    resource=f"/{bucket_name}/{object_name}",
-                    request_id=None,
-                    host_id=None,
-                    response="mocked_response",
-                    code=404,
-                    bucket_name=bucket_name,
-                    object_name=object_name,
-                )
+        if not version_id:
+            if self.get_bucket_versioning(bucket_name).status == OFF:
+                version_id = "null"
+            else:
+                latest_object = self.buckets[bucket_name].get_latest_object(object_name)
+                version_id = latest_object.version_id
 
         try:
             the_object = the_object[version_id]
@@ -467,19 +444,19 @@ class MockMinioClient:
                 bucket_name=bucket_name,
                 object_name=object_name,
             )
-        finally:
-            if the_object.is_delete_marker:
-                raise S3Error(
-                    message="The specified method is not allowed against this resource.",
-                    resource=f"/{bucket_name}/{object_name}",
-                    request_id=None,
-                    host_id=None,
-                    response="mocked_response",
-                    code=403,
-                    bucket_name=bucket_name,
-                    object_name=object_name,
-                )
-            data = the_object.data
+
+        if the_object.is_delete_marker:
+            raise S3Error(
+                message="The specified method is not allowed against this resource.",
+                resource=f"/{bucket_name}/{object_name}",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=403,
+                bucket_name=bucket_name,
+                object_name=object_name,
+            )
+        data = the_object.data
 
         # Create a buffer containing the data
         if isinstance(data, io.BytesIO):
@@ -676,7 +653,7 @@ class MockMinioClient:
         expires=datetime.timedelta(days=7),
         response_headers=None,
         request_date=None,
-        version_id=None,
+        version_id: str | None = None,
         extra_query_params=None,
     ):
         """
@@ -732,7 +709,7 @@ class MockMinioClient:
         expires=datetime.timedelta(days=7),
         response_headers=None,
         request_date=None,
-        version_id=None,
+        version_id: str | None = None,
         extra_query_params=None,
     ):
         """
@@ -923,7 +900,6 @@ class MockMinioClient:
                     # Directly add the object for recursive listing or if it's a file in the current directory
                     if include_version:
                         # Minio API always sort versions by time, it also includes delete markers at the end newwst first
-                        ##################################################################################################
                         versions_list = list(
                             sorted(
                                 bucket_objects[obj_name].items(),
@@ -944,13 +920,7 @@ class MockMinioClient:
                             )
                     else:
                         # only yield if the object is not a delete marker
-                        version, _ = list(
-                            sorted(
-                                bucket_objects[obj_name].items(),
-                                key=lambda i: i[1].last_modified,
-                            )
-                        )[-1]
-                        obj = bucket_objects[obj_name][version]
+                        obj = buckets[bucket_name].get_latest_object(obj_name)
                         if not obj.is_delete_marker:
                             yield Object(
                                 bucket_name=bucket_name,
@@ -1044,7 +1014,7 @@ class MockMinioClient:
 
                 else:  # version_id is False
                     #
-                    latest_obj = self.buckets[bucket_name]._get_latest_object(
+                    latest_obj = self.buckets[bucket_name].get_latest_object(
                         object_name
                     )
                     if latest_obj.is_delete_marker:

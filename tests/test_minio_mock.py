@@ -113,12 +113,22 @@ def test_versioned_objects(minio_mock):
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
     assert len(objects) == 3
 
+    objects = list(client.list_objects(bucket_name, object_name))
+    assert len(objects) == 0
+
     client.fput_object(bucket_name, object_name, file_path)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
     assert len(objects) == 4
+
+    objects = list(client.list_objects(bucket_name, object_name))
+    assert len(objects) == 1
+
     client.remove_object(bucket_name, object_name)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
     assert len(objects) == 5
+
+    objects = list(client.list_objects(bucket_name, object_name))
+    assert len(objects) == 0
 
     client.fput_object(bucket_name, object_name, file_path)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
