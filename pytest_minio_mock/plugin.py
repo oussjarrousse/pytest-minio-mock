@@ -180,7 +180,7 @@ class MockMinioServer:
         return self._base_url
 
     @property
-    def bucket(self):
+    def buckets(self):
         """Get the dictionary of buckets in the server."""
         return self._buckets
 
