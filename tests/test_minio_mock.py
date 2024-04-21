@@ -63,7 +63,6 @@ def test_adding_and_removing_objects_basic(minio_mock):
         object_name in client.buckets[bucket_name].objects
     ), "Object should be in the bucket after upload"
     client.remove_object(bucket_name, object_name)
-
     assert object_name not in client.buckets[bucket_name].objects
 
 
@@ -76,20 +75,50 @@ def test_versioned_objects(minio_mock):
 
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
+
+    client.fput_object(bucket_name, object_name, file_path)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 1
+    client.remove_object(bucket_name, object_name, version_id="null")
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 0
+
+    # Versioning Enabled
     client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
+    # Add two objects
     client.fput_object(bucket_name, object_name, file_path)
     client.fput_object(bucket_name, object_name, file_path)
     # list_objects should sort by newest
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
     assert len(objects) == 2
+
     first_version = objects[0].version_id
     last_version = objects[1].version_id
 
     client.remove_object(bucket_name, object_name, version_id=first_version)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
     assert len(objects) == 1
+    assert objects[0].version_id == last_version
+
+    client.fput_object(bucket_name, object_name, file_path)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 2
     first_version = objects[0].version_id
-    assert first_version == last_version
+    assert first_version != last_version
+
+    client.remove_object(bucket_name, object_name)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 3
+    client.remove_object(bucket_name, object_name)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 3
+
+    client.fput_object(bucket_name, object_name, file_path)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 4
+    client.remove_object(bucket_name, object_name)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 5
 
     client.fput_object(bucket_name, object_name, file_path)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))

@@ -120,6 +120,14 @@ class MockMinioBucket:
         self._location = location
         self._object_lock = object_lock
 
+    def _get_latest_object(self, object_name):
+        """returns the latest_object"""
+        for version in self._objects[object_name]:
+            obj = self._objects[object_name][version]
+            if obj.is_latest:
+                return obj
+        raise Exception("no latest")
+
     @property
     def objects(self):
         """Get the objects stored in the bucket."""
@@ -413,16 +421,27 @@ class MockMinioClient:
         # interact with them. And if versioning is Off, then None is a valid
         # version too, and we can work with it
 
-        # If no version was specified, try to find the first one that does not
+        # If version == "null", try to find the first one that does not
         # correspond to a deleted object. Note that it can still be None after
         # that if versioning is Off, but that is not a problem.
         if version_id == "null":
             found_obj = None
             # reversed to start by the newest object
+            #
+            #
+            #
+            #
+            #
             for version_id, obj in reversed(the_object.items()):
                 if not obj.is_delete_marker:
                     found_obj = obj
                     break
+            #
+            #
+            #
+            #
+            #
+            #
             if not found_obj:
                 raise S3Error(
                     message="The specified key does not exist.",
@@ -538,6 +557,66 @@ class MockMinioClient:
                 part_size=part_size,
             )
 
+    def _put_object(
+        self,
+        bucket_name: str,
+        object_name: str,
+        data,
+        length: int,
+        content_type: str = "application/octet-stream",
+        metadata=None,
+        sse=None,
+        progress=None,
+        part_size: int = 0,
+        # num_parallel_uploads: int = 3,
+        # tags = None,
+        # retention = None,
+        # legal_hold: bool = False,
+        is_delete_marker=False,
+    ):
+        self._health_check()
+        if not self.bucket_exists(bucket_name):
+            raise S3Error(
+                message="bucket does not exist",
+                resource=bucket_name,
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code=404,
+                bucket_name=bucket_name,
+                object_name=None,
+            )
+
+        # According to
+        # https://min.io/docs/minio/linux/administration/object-management/object-versioning.html#suspend-bucket-versioning
+        # objects created when versioning is suspended have a 'null' version ID (None in Python)
+
+        version = "null"
+        # If status is enabled, create a new version UUID
+        if self.get_bucket_versioning(bucket_name).status == ENABLED:
+            version = str(uuid4())
+
+        obj = MockMinioObject(
+            object_name=object_name,
+            data=data,
+            version_id=version,
+            is_delete_marker=is_delete_marker,
+            is_latest=True,
+        )
+        # If versioning is OFF, there can only be one version of an object (store a read version_id non-the-less)
+        if self.get_bucket_versioning(bucket_name).status == OFF:
+            self.buckets[bucket_name].objects[object_name] = {version: obj}
+        else:
+            if object_name not in self.buckets[bucket_name].objects:
+                self.buckets[bucket_name].objects[object_name] = {}
+            else:
+                for old_version in self.buckets[bucket_name].objects[object_name]:
+                    self.buckets[bucket_name].objects[object_name][
+                        old_version
+                    ]._is_latest = False
+            self.buckets[bucket_name].objects[object_name][version] = obj
+        return obj
+
     def put_object(
         self,
         bucket_name: str,
@@ -552,7 +631,7 @@ class MockMinioClient:
         # num_parallel_uploads: int = 3,
         # tags = None,
         # retention = None,
-        # legal_hold: bool = False
+        # legal_hold: bool = False,
     ):
         """
         Simulates uploading an object to the mock Minio server.
@@ -575,49 +654,17 @@ class MockMinioClient:
         Returns:
             str: Confirmation message indicating successful upload.
         """
-        self._health_check()
-        if not self.bucket_exists(bucket_name):
-            raise S3Error(
-                message="bucket does not exist",
-                resource=bucket_name,
-                request_id=None,
-                host_id=None,
-                response="mocked_response",
-                code=404,
-                bucket_name=bucket_name,
-                object_name=None,
-            )
-
-        # According to
-        # https://min.io/docs/minio/linux/administration/object-management/object-versioning.html#suspend-bucket-versioning
-        # objects created when versioning is suspended have a null version ID (None in Python)
-        # I did not find the information about what exactly happend when versioning is OFF,
-        # but I assume it is the same...
-
-        version = "null"
-        # If status is enabled, create a new version UUID
-        if self.get_bucket_versioning(bucket_name).status == ENABLED:
-            version = str(uuid4())
-
-        obj = MockMinioObject(
-            object_name=object_name,
-            data=data,
-            version_id=version,
-            is_delete_marker=False,
-            is_latest=True,
+        obj = self._put_object(
+            bucket_name,
+            object_name,
+            data,
+            length,
+            content_type,
+            metadata,
+            sse,
+            progress,
+            part_size,
         )
-        # If versioning is OFF, there can only be one version of an object (store a read version_id non-the-less)
-        if self.get_bucket_versioning(bucket_name).status == OFF:
-            self.buckets[bucket_name].objects[object_name] = {version: obj}
-        else:
-            if object_name not in self.buckets[bucket_name].objects:
-                self.buckets[bucket_name].objects[object_name] = {}
-            else:
-                for old_version in self.buckets[bucket_name].objects[object_name]:
-                    self.buckets[bucket_name].objects[object_name][
-                        old_version
-                    ]._is_latest = False
-            self.buckets[bucket_name].objects[object_name][version] = obj
 
         return "Upload successful"
 
@@ -875,13 +922,15 @@ class MockMinioClient:
                             continue  # Skip further processing to prevent adding the full object path
                     # Directly add the object for recursive listing or if it's a file in the current directory
                     if include_version:
-                        # Minio API always includes deleted markers if include_version
+                        # Minio API always sort versions by time, it also includes delete markers at the end newwst first
+                        ##################################################################################################
                         versions_list = list(
-                            reversed(
-                                sorted(
-                                    bucket_objects[obj_name].items(),
-                                    key=lambda i: i[1].last_modified,
-                                )
+                            sorted(
+                                bucket_objects[obj_name].items(),
+                                key=lambda i: (
+                                    i[1].is_delete_marker,
+                                    -i[1].last_modified.timestamp(),
+                                ),
                             )
                         )
                         for version, obj in versions_list:
@@ -890,7 +939,7 @@ class MockMinioClient:
                                 object_name=obj_name,
                                 last_modified=obj.last_modified,
                                 version_id=version,
-                                is_latest=obj.is_latest,
+                                is_latest="true" if obj.is_latest else "false",
                                 is_delete_marker=obj.is_delete_marker,
                             )
                     else:
@@ -935,7 +984,7 @@ class MockMinioClient:
         except Exception as e:
             raise e
 
-    def remove_object(self, bucket_name, object_name, version_id="null"):
+    def remove_object(self, bucket_name, object_name, version_id=None):
         """
         Removes an object from a bucket in the mock Minio server.
 
@@ -955,7 +1004,7 @@ class MockMinioClient:
             return
         try:
             if self.get_bucket_versioning(bucket_name).status == OFF:
-                if version_id and version_id != "null":
+                if version_id:
                     if version_id in self.buckets[bucket_name].objects[object_name]:
                         del self.buckets[bucket_name].objects[object_name][version_id]
                     else:
@@ -976,33 +1025,44 @@ class MockMinioClient:
                         # version_id does not exist
                         # nothing to do
                         return
-                    elif (
-                        self.buckets[bucket_name]
-                        .objects[object_name][version_id]
-                        .is_delete_marker
-                        == True
-                    ):
-                        # version_id exists but delete_market is already True
-                        # nothing to do
-                        return
+                    # elif (
+                    #     self.buckets[bucket_name]
+                    #     .objects[object_name][version_id]
+                    #     .is_delete_marker
+                    #     == True
+                    # ):
+                    #     de
+                    # version_id exists but delete_market is already True
+                    # nothing to do
+                    # raise Exception("TODO")
                     else:
                         # mark the object as deleted
-                        self.buckets[bucket_name].objects[object_name][
-                            version_id
-                        ].is_delete_marker = True
-                else:
-                    # remove the lastest object by setting the delete marker to True
-                    # get the latest object version_id
-                    latest_object_version_id = list(
-                        self.buckets[bucket_name].objects[object_name].keys()
-                    )[-1]
-                    self.buckets[bucket_name].objects[object_name][
-                        latest_object_version_id
-                    ].is_delete_marker = True
+                        # self.buckets[bucket_name].objects[object_name][
+                        #     version_id
+                        # ].is_delete_marker = True
+                        del self.buckets[bucket_name].objects[object_name][version_id]
 
-        except Exception:
+                else:  # version_id is False
+                    #
+                    latest_obj = self.buckets[bucket_name]._get_latest_object(
+                        object_name
+                    )
+                    if latest_obj.is_delete_marker:
+                        # nothing to do
+                        return
+
+                    self._put_object(
+                        bucket_name=bucket_name,
+                        object_name=object_name,
+                        data=b"",
+                        length=0,
+                        is_delete_marker=True,
+                    )
+
+        except Exception as e:
             logging.error("remove_object(): Exception")
             logging.error(self.buckets)
+            logging.error(e)
             raise
 
 
