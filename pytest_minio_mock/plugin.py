@@ -1037,7 +1037,7 @@ class MockMinioClient:
                     latest_obj = self.buckets[bucket_name].get_latest_object(
                         object_name
                     )
-                    del self.buckets[bucket_name].objects[version_id]
+                    del self.buckets[bucket_name].objects[object_name][version_id]
                     if version_id == latest_obj.version_id:
                         obj = list(
                             self.buckets[bucket_name].objects[object_name].values()

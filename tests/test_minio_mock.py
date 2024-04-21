@@ -165,14 +165,20 @@ def test_versioned_objects_after_upload(minio_mock):
     assert last_version is not None
     client.set_bucket_versioning(bucket_name, VersioningConfig(SUSPENDED))
 
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+
+    client.remove_object(bucket_name, object_name, objects[0].version_id)
+    objects = list(client.list_objects(bucket_name, object_name, include_version=True))
+    assert len(objects) == 2
+
     client.remove_object(bucket_name, object_name)
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
-    assert len(objects) == 3
+    assert len(objects) == 2
     assert objects[-1].is_delete_marker == True
 
     client.remove_object(bucket_name, object_name, "null")
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
-    assert len(objects) == 3
+    assert len(objects) == 1
 
 
 @pytest.mark.UNIT
