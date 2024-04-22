@@ -15,5 +15,12 @@ For more information and usage examples, please refer to the project's README.md
 
 """
 
-__version__ = "0.2.10"
+__title__ = "pytest-minio-mock"
+__description__ = "A pytest plugin for mocking Minio S3 interactions"
+__version__ = "0.2.11"
+__status__ = "Production"
+__license__ = "MIT"
 __author__ = "Oussama Jarrousse"
+__maintainer__ = "Oussama Jarrousse"
+__email__ = "oussama@jarrousse.org"
+__credits__ = ["Gustavo Satheler", "@cottephi"]

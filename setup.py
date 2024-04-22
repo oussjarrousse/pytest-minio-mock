@@ -21,7 +21,7 @@ setup(
     long_description=open("README.md").read(),
     keywords="pytest minio mock",
     extras_require={"dev": ["pre-commit", "tox"]},
-    version="0.2.10",
+    version="0.2.11",
     long_description_content_type="text/markdown",
     classifiers=[
         "Framework :: Pytest",
