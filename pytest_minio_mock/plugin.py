@@ -125,9 +125,15 @@ class MockMinioObject:
     Represents a mock object in Minio storage.
     """
 
-    def __init__(self, object_name):
+    def __init__(self, bucket_name, object_name):
+        self._bucket_name = bucket_name
         self._object_name = object_name
         self._versions = {}
+
+    @property
+    def bucket_name(self):
+        """Get the name of the bucket"""
+        return self._bucket_name
 
     @property
     def object_name(self):
@@ -162,12 +168,12 @@ class MockMinioObject:
                 return obj
         raise RuntimeError("Implemnetation Error")
 
-    def put_object_version(self, version_id, obj):
+    def put_object_version(self, version_id, obj: MockMinioObjectVersion):
         """
-        Inserts a object version in the _versions map.
+        Inserts an object version in the _versions map.
         """
         self.reset_latest()
-        obj.latest = True
+        obj.is_latest = True
         self._versions[version_id] = obj
 
     def put_object(
@@ -223,13 +229,13 @@ class MockMinioObject:
         if version_id and version_id != "null" and not validators.uuid(version_id):
             raise S3Error(
                 message="Invalid version id specified",
-                resource=f"/{self.bucket_name}/{object_name}",
+                resource=f"/{self.bucket_name}/{self.object_name}",
                 request_id=None,
                 host_id=None,
                 response="mocked_response",
                 code=422,
                 bucket_name=self.bucket_name,
-                object_name=object_name,
+                object_name=self.object_name,
             )
 
         # If version == None, give version_id a value
@@ -318,7 +324,7 @@ class MockMinioObject:
             if versioning.status == ENABLED:
                 if version_id:
                     if version_id not in self.versions:
-                        # version_id does not exist
+                        # version_id does not exist,
                         # nothing to do
                         return
                     else:
@@ -420,7 +426,7 @@ class MockMinioBucket:
             newly added object
         """
         if object_name not in self.objects:
-            self.objects[object_name] = MockMinioObject(object_name)
+            self.objects[object_name] = MockMinioObject(self.bucket_name, object_name)
 
         obj = self.objects[object_name].put_object(
             object_name=object_name,

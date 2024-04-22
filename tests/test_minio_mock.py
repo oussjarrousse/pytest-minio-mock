@@ -17,7 +17,7 @@ from pytest_minio_mock.plugin import MockMinioObject
 class TestsMockMinioObject:
     @pytest.mark.UNIT
     def test_mock_minio_object_init(self):
-        mock_minio_object = MockMinioObject("test-object")
+        mock_minio_object = MockMinioObject("test-bucket", "test-object")
         assert mock_minio_object.versions == {}
 
 
@@ -115,6 +115,8 @@ def test_putting_objects_with_versionning_enabled(minio_mock):
     # check that versions are stored correctly and retrieved correctly
     objects = list(client.list_objects(bucket_name, object_name, include_version=True))
     assert len(objects) == 2
+    with pytest.raises(S3Error, match="Invalid version"):
+        client.get_object(bucket_name, object_name, version_id="wrong")
 
 
 @pytest.mark.API
