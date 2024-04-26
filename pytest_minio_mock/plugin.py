@@ -33,7 +33,7 @@ import pytest
 import validators
 from minio import Minio
 from minio.commonconfig import ENABLED
-from minio.datatypes import Object
+from minio.datatypes import Object, Bucket
 from minio.error import S3Error
 from minio.versioningconfig import OFF
 from minio.versioningconfig import SUSPENDED
@@ -386,6 +386,7 @@ class MockMinioBucket:
         self._objects = {}
         self._location = location
         self._object_lock = object_lock
+        self._creation_date = datetime.datetime.now()
 
     @property
     def bucket_name(self):
@@ -511,7 +512,8 @@ class MockMinioBucket:
         if prefix is None:
             prefix = ""
 
-        for object_name, obj in self.objects.items():
+        # Note: Wrapped items() in list(.) to allow modification during iteration
+        for object_name, obj in list(self.objects.items()):
             if object_name.startswith(prefix) and (
                 not start_after or object_name > start_after
             ):
@@ -1073,10 +1075,7 @@ class MockMinioClient:
         """
         try:
             self._health_check()
-            buckets_list = []
-            for bucket_name in self.buckets.keys():
-                buckets_list.append(bucket_name)
-            return buckets_list
+            return [Bucket(name, bucket._creation_date) for (name, bucket) in list(self.buckets.items())]
         except Exception as e:
             logging.error(e)
             raise e
@@ -1125,6 +1124,38 @@ class MockMinioClient:
             object_lock=object_lock,
         )
         return True
+
+    def remove_bucket(self, bucket_name: str):
+        """
+        Remove an empty bucket.
+
+        :param bucket_name: Name of the bucket.
+
+        Example::
+            client.remove_bucket("my-bucket")
+        """
+        self._health_check()
+        if bucket_name not in self.buckets:
+            raise S3Error(
+                code="NoSuchBucket",
+                message="The specified bucket does not exist",
+                resource=f"/{bucket_name}",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                bucket_name=bucket_name,
+            )
+        if self.buckets[bucket_name].objects:
+            raise S3Error(
+                code="BucketNotEmpty",
+                message="The bucket you tried to delete is not empty",
+                resource=f"/{bucket_name}",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                bucket_name=bucket_name,
+            )
+        del self.buckets[bucket_name]
 
     def set_bucket_versioning(self, bucket_name: str, config: VersioningConfig):
         """Bucket versioning can be set to ENABLED or SUSPENDED, but not to
