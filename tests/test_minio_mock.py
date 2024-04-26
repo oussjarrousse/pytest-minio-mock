@@ -463,7 +463,7 @@ def test_stat_object(minio_mock):
 
     assert object_stat.bucket_name == bucket_name
     assert object_stat.object_name == object_name
-    assert object_stat.version_id == None
+    assert object_stat.version_id is None
 
     client.remove_object(bucket_name, object_name)
 
@@ -472,21 +472,24 @@ def test_stat_object(minio_mock):
     assert error.value.code == "NoSuchKey"
     assert error.value.message == "Object does not exist"
 
-    # assert (
-    #     object_name in client.buckets[bucket_name].objects
-    # ), "Object should be in the bucket after upload"
-    # objects = list(client.list_objects(bucket_name))
-    # assert len(objects) == 1
+    client.fput_object(bucket_name, object_name, file_path)
+    client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
 
-    # assert object_name not in client.buckets[bucket_name].objects
-    # objects = list(client.list_objects(bucket_name))
-    # assert len(objects) == 0
-
-    # # even if include version is True nothing should change because versioning is OFF
-    # objects = list(client.list_objects(bucket_name, include_version=True))
-    # assert len(objects) == 0
-
-    # # test retrieving object after it has been removed
-    # with pytest.raises(S3Error) as error:
-    #     _ = client.get_object(bucket_name, object_name)
-    # assert "The specified key does not exist" in str(error.value)
+    object_stat = client.stat_object(bucket_name=bucket_name, object_name=object_name)
+    assert object_stat.bucket_name == bucket_name
+    assert object_stat.object_name == object_name
+    assert object_stat.version_id is None
+    object_stat = client.stat_object(
+        bucket_name=bucket_name, object_name=object_name, version_id="null"
+    )
+    assert object_stat.bucket_name == bucket_name
+    assert object_stat.object_name == object_name
+    assert object_stat.version_id is None
+    client.fput_object(bucket_name, object_name, file_path)
+    objects = list(client.list_objects(bucket_name=bucket_name, include_version=True))
+    object_stat = client.stat_object(
+        bucket_name=bucket_name,
+        object_name=object_name,
+        version_id=objects[1].version_id,
+    )
+    assert object_stat.version_id is None

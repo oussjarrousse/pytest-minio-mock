@@ -239,7 +239,9 @@ class MockMinioObject:
             bucket_name=self.bucket_name,
             object_name=self.object_name,
             last_modified=obj_version.last_modified,
-            version_id=None if versioning.status == "Off" else obj_version.version_id,
+            version_id=None
+            if obj_version.version_id == "null"
+            else obj_version.version_id,
             is_latest="true" if obj_version.is_latest else "false",
             is_delete_marker=obj_version.is_delete_marker,
         )
