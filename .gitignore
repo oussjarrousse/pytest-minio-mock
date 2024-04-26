@@ -23,3 +23,5 @@ dist
 
 #pypi
 .pypirc
+
+*.ignore
