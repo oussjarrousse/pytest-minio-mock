@@ -4,11 +4,11 @@ import pytest
 import validators
 from minio import Minio
 from minio.commonconfig import ENABLED
+from minio.datatypes import Bucket
 from minio.error import S3Error
 from minio.versioningconfig import OFF
 from minio.versioningconfig import SUSPENDED
 from minio.versioningconfig import VersioningConfig
-from minio.datatypes import Bucket
 
 from pytest_minio_mock.plugin import MockMinioBucket
 from pytest_minio_mock.plugin import MockMinioObject
@@ -447,3 +447,46 @@ def test_connecting_to_the_same_endpoint(minio_mock):
     client_2 = Minio("http://local.host:9000")
     client_2_buckets = client_2.list_buckets()
     assert client_2_buckets == client_1_buckets
+
+
+@pytest.mark.UNIT
+def test_stat_object(minio_mock):
+    bucket_name = "test-bucket"
+    object_name = "test-object"
+    file_path = "tests/fixtures/maya.jpeg"
+
+    client = Minio("http://local.host:9000")
+    client.make_bucket(bucket_name)
+    client.fput_object(bucket_name, object_name, file_path)
+
+    object_stat = client.stat_object(bucket_name=bucket_name, object_name=object_name)
+
+    assert object_stat.bucket_name == bucket_name
+    assert object_stat.object_name == object_name
+    assert object_stat.version_id == None
+
+    client.remove_object(bucket_name, object_name)
+
+    with pytest.raises(S3Error) as error:
+        _ = client.stat_object(bucket_name=bucket_name, object_name=object_name)
+    assert error.value.code == "NoSuchKey"
+    assert error.value.message == "Object does not exist"
+
+    # assert (
+    #     object_name in client.buckets[bucket_name].objects
+    # ), "Object should be in the bucket after upload"
+    # objects = list(client.list_objects(bucket_name))
+    # assert len(objects) == 1
+
+    # assert object_name not in client.buckets[bucket_name].objects
+    # objects = list(client.list_objects(bucket_name))
+    # assert len(objects) == 0
+
+    # # even if include version is True nothing should change because versioning is OFF
+    # objects = list(client.list_objects(bucket_name, include_version=True))
+    # assert len(objects) == 0
+
+    # # test retrieving object after it has been removed
+    # with pytest.raises(S3Error) as error:
+    #     _ = client.get_object(bucket_name, object_name)
+    # assert "The specified key does not exist" in str(error.value)

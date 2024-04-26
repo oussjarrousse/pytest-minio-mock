@@ -21,7 +21,6 @@ by simulating the Minio environment. It's useful in scenarios where you want to 
 application interacts correctly with Minio, without the overhead of connecting to an actual Minio
 server.
 """
-
 import copy
 import datetime
 import io
@@ -33,7 +32,8 @@ import pytest
 import validators
 from minio import Minio
 from minio.commonconfig import ENABLED
-from minio.datatypes import Object, Bucket
+from minio.datatypes import Bucket
+from minio.datatypes import Object
 from minio.error import S3Error
 from minio.versioningconfig import OFF
 from minio.versioningconfig import SUSPENDED
@@ -220,6 +220,31 @@ class MockMinioObject:
 
         self.put_object_version(version_id, obj)
         return obj
+
+    def stat_object(
+        self,
+        version_id,
+        versioning: VersioningConfig,
+        ssec=None,
+        extra_headers=None,
+        extra_query_params=None,
+    ):
+        """
+        Returns
+            the stat of the object if versioning is disabled
+            the stat of the latest version of the object if versioning is enabled
+        """
+        obj_version = self.get_object(version_id=version_id, versioning=versioning)
+        the_stat_object_version = Object(
+            bucket_name=self.bucket_name,
+            object_name=self.object_name,
+            last_modified=obj_version.last_modified,
+            version_id=None if versioning.status == "Off" else obj_version.version_id,
+            is_latest="true" if obj_version.is_latest else "false",
+            is_delete_marker=obj_version.is_delete_marker,
+        )
+
+        return the_stat_object_version
 
     def get_object(self, version_id, versioning: VersioningConfig):
         """
@@ -451,7 +476,7 @@ class MockMinioBucket:
     def remove_object(self, object_name, version_id=None):
         """ """
         if object_name not in self.objects:
-            # object does not exist, so nothing to do
+            # Object does not exist, so nothing to do
             return
         try:
             if self.versioning.status == OFF:
@@ -495,6 +520,63 @@ class MockMinioBucket:
             )
         return the_object_version
 
+    def stat_object(
+        self,
+        object_name,
+        ssec=None,
+        version_id=None,
+        extra_headers=None,
+        extra_query_params=None,
+    ) -> Object:
+        """
+        Get object information and metadata of an object in the mock Minio server
+
+        Args:
+            object_name (str): The name of the object to remove.
+            ssec (SseCustomerKey| None, optional): Server-side encryption customer key.
+            version_id (str | None, optional): The version about which to retrieve information and metadata.
+            extra_headers ( dict | None, optional ):
+            extra_query_params ( dict | None, optional): Extra query parameters for advanced usage.
+
+        Returns:
+            Object: Object information as Object.
+        """
+
+        try:
+            the_object = self.objects[object_name]
+        except KeyError as e:
+            raise S3Error(
+                message="Object does not exist",
+                resource=f"/{self.bucket_name}/{object_name}",
+                request_id=None,
+                host_id=None,
+                response="mocked_response",
+                code="NoSuchKey",
+                bucket_name=self.bucket_name,
+                object_name=object_name,
+            )
+
+        try:
+            the_object_version_stat = the_object.stat_object(
+                version_id=version_id,
+                versioning=self.versioning,
+                ssec=ssec,
+                extra_headers=extra_headers,
+                extra_query_params=extra_query_params,
+            )
+        except S3Error as e:
+            raise S3Error(
+                message=e.message,
+                response=e.response,
+                resource=f"/{self.bucket_name}/{object_name}",
+                host_id=None,
+                request_id=None,
+                code=e.code,
+                bucket_name=self.bucket_name,
+                object_name=object_name,
+            )
+        return the_object_version_stat
+
     def list_objects(
         self,
         prefix=None,
@@ -537,12 +619,12 @@ class MockMinioBucket:
                     # Minio API always sort versions by time,
                     # it also includes delete markers at the end newwst first
                     versions_list = obj.list_versions()
-                    for version, obj_version in versions_list:
+                    for version_id, obj_version in versions_list:
                         yield Object(
                             bucket_name=self.bucket_name,
                             object_name=object_name,
                             last_modified=obj_version.last_modified,
-                            version_id=version,
+                            version_id=version_id,
                             is_latest="true" if obj_version.is_latest else "false",
                             is_delete_marker=obj_version.is_delete_marker,
                         )
@@ -774,7 +856,6 @@ class MockMinioClient:
             object_name,
             version_id=version_id,
             request_headers=request_headers,
-            sse=sse,
             extra_query_params=extra_query_params,
         )
         with open(file_path, "wb") as f:
@@ -787,7 +868,7 @@ class MockMinioClient:
         offset: int = 0,
         length: int = 0,
         request_headers=None,
-        sse=None,
+        ssec=None,
         version_id=None,
         extra_query_params=None,
     ):
@@ -805,7 +886,7 @@ class MockMinioClient:
             length (int, optional): The number of bytes of object data to retrieve. Defaults to 0,
                 which means the whole object.
             request_headers (dict, optional): Additional headers for the request. Defaults to None.
-            sse (optional): Server-side encryption option. Defaults to None.
+            ssec ( SseCustomerKey | None, optional): Server-side encryption option. Defaults to None.
             version_id (str | None, optional): The version ID of the object. Defaults to None.
             extra_query_params (dict, optional): Additional query parameters. Defaults to None.
 
@@ -1075,7 +1156,10 @@ class MockMinioClient:
         """
         try:
             self._health_check()
-            return [Bucket(name, bucket._creation_date) for (name, bucket) in list(self.buckets.items())]
+            return [
+                Bucket(name, bucket._creation_date)
+                for (name, bucket) in list(self.buckets.items())
+            ]
         except Exception as e:
             logging.error(e)
             raise e
@@ -1260,6 +1344,48 @@ class MockMinioClient:
         return self.buckets[bucket_name].remove_object(
             object_name, version_id=version_id
         )
+
+    def stat_object(
+        self,
+        bucket_name,
+        object_name,
+        ssec=None,
+        version_id=None,
+        extra_headers=None,
+        extra_query_params=None,
+    ) -> Object:
+        """
+        Get object information and metadata of an object in the mock Minio server
+
+        Args:
+            bucket_name (str): The name of the bucket.
+            object_name (str): The name of the object to remove.
+            ssec (SseCustomerKey| None, optional): Server-side encryption customer key.
+            version_id (str | None, optional): The version about which to retrieve information and metadata.
+            extra_headers ( dict | None, optional ):
+            extra_query_params ( dict | None, optional): Extra query parameters for advanced usage.
+
+        Raises:
+            S3Error:
+
+        Returns:
+            Object: Object information as Object.
+
+        """
+        self._health_check()
+
+        the_stat_object = self.buckets[bucket_name].stat_object(
+            object_name=object_name,
+            ssec=ssec,
+            version_id=version_id,
+            extra_headers=extra_headers,
+            extra_query_params=extra_query_params,
+        )
+
+        if not the_stat_object:
+            raise RuntimeError("Implementation Error")
+
+        return the_stat_object
 
 
 @pytest.fixture
