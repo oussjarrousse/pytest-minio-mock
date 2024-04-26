@@ -23,4 +23,4 @@ __license__ = "MIT"
 __author__ = "Oussama Jarrousse"
 __maintainer__ = "Oussama Jarrousse"
 __email__ = "oussama@jarrousse.org"
-__credits__ = ["Gustavo Satheler", "@cottephi"]
+__credits__ = ["Gustavo Satheler", "@cottephi", "Wouter van Atteveldt"]
