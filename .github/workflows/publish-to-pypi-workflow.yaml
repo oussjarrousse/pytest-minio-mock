@@ -1,7 +1,9 @@
 ---
 name: Publish pytest-minio-mock distribution 📦 to PyPI
 
-on: push
+on:
+    release:
+        types: [created]
 
 jobs:
     build:
