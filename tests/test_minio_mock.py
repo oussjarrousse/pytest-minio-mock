@@ -8,6 +8,7 @@ from minio.error import S3Error
 from minio.versioningconfig import OFF
 from minio.versioningconfig import SUSPENDED
 from minio.versioningconfig import VersioningConfig
+from minio.datatypes import Bucket
 
 from pytest_minio_mock.plugin import MockMinioBucket
 from pytest_minio_mock.plugin import MockMinioObject
@@ -61,6 +62,21 @@ def test_make_bucket(minio_mock):
     client = Minio("http://local.host:9000")
     client.make_bucket(bucket_name)
     assert client.bucket_exists(bucket_name), "Bucket should exist after creation"
+
+
+@pytest.mark.UNIT
+@pytest.mark.API
+def test_remove_bucket(minio_mock):
+    client = Minio("http://local.host:9000")
+    original_buckets = client.list_buckets()
+    n = len(original_buckets)
+    bucket_name = "new-bucket"
+    client.make_bucket(bucket_name)
+    buckets = client.list_buckets()
+    assert len(buckets) == n + 1
+    client.remove_bucket(bucket_name)
+    buckets = client.list_buckets()
+    assert buckets == original_buckets
 
 
 @pytest.mark.API
@@ -369,6 +385,8 @@ def test_list_buckets(minio_mock):
     client.make_bucket(bucket_name)
     buckets = client.list_buckets()
     assert len(buckets) == n + 1
+    assert "new-bucket" in {b.name for b in buckets}
+    assert all(isinstance(b, Bucket) for b in buckets)
 
 
 @pytest.mark.REGRESSION
