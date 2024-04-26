@@ -4,11 +4,11 @@ import pytest
 import validators
 from minio import Minio
 from minio.commonconfig import ENABLED
+from minio.datatypes import Bucket
 from minio.error import S3Error
 from minio.versioningconfig import OFF
 from minio.versioningconfig import SUSPENDED
 from minio.versioningconfig import VersioningConfig
-from minio.datatypes import Bucket
 
 from pytest_minio_mock.plugin import MockMinioBucket
 from pytest_minio_mock.plugin import MockMinioObject
@@ -447,3 +447,49 @@ def test_connecting_to_the_same_endpoint(minio_mock):
     client_2 = Minio("http://local.host:9000")
     client_2_buckets = client_2.list_buckets()
     assert client_2_buckets == client_1_buckets
+
+
+@pytest.mark.UNIT
+def test_stat_object(minio_mock):
+    bucket_name = "test-bucket"
+    object_name = "test-object"
+    file_path = "tests/fixtures/maya.jpeg"
+
+    client = Minio("http://local.host:9000")
+    client.make_bucket(bucket_name)
+    client.fput_object(bucket_name, object_name, file_path)
+
+    object_stat = client.stat_object(bucket_name=bucket_name, object_name=object_name)
+
+    assert object_stat.bucket_name == bucket_name
+    assert object_stat.object_name == object_name
+    assert object_stat.version_id is None
+
+    client.remove_object(bucket_name, object_name)
+
+    with pytest.raises(S3Error) as error:
+        _ = client.stat_object(bucket_name=bucket_name, object_name=object_name)
+    assert error.value.code == "NoSuchKey"
+    assert error.value.message == "Object does not exist"
+
+    client.fput_object(bucket_name, object_name, file_path)
+    client.set_bucket_versioning(bucket_name, VersioningConfig(ENABLED))
+
+    object_stat = client.stat_object(bucket_name=bucket_name, object_name=object_name)
+    assert object_stat.bucket_name == bucket_name
+    assert object_stat.object_name == object_name
+    assert object_stat.version_id is None
+    object_stat = client.stat_object(
+        bucket_name=bucket_name, object_name=object_name, version_id="null"
+    )
+    assert object_stat.bucket_name == bucket_name
+    assert object_stat.object_name == object_name
+    assert object_stat.version_id is None
+    client.fput_object(bucket_name, object_name, file_path)
+    objects = list(client.list_objects(bucket_name=bucket_name, include_version=True))
+    object_stat = client.stat_object(
+        bucket_name=bucket_name,
+        object_name=object_name,
+        version_id=objects[1].version_id,
+    )
+    assert object_stat.version_id is None
