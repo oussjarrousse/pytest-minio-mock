@@ -13,7 +13,30 @@ The plugin supports python version 3.8 or above.
 ## Features
 - Mock implementation of the `minio.Minio` client.
 - Easy to use pytest fixture.
-- Supports common Minio operations such as bucket creation, file upload/download, etc.
+- Supports versioning.
+- Currently the plugin mocks the following Minio client APIs:
+
+    **Bucket Operations:**
+  
+    - `make_bucket`
+    - `list_buckets`
+    - `bucket_exists`
+    - `remove_bucket`
+    - `list_objects`
+    - `get_bucket_versioning`
+    - `set_bucket_versioning`
+    
+    **Objects Operations:**
+    
+    - `get_object`
+    - `fget_object`
+    - `put_object`
+    - `fput_object`
+    - `stat_object`
+    - `remove_object`
+    - `get_presigned_url`
+    - `presigned_put_object`
+    - `presigned_get_object`
 
 ## Installation
 
@@ -74,6 +97,7 @@ A brief description of the mocked methods and their behavior, like:
 - `make_bucket(bucket_name, ...)` # Mocks bucket creation.
 - `fput_object(bucket_name, object_name, file_path, ...)` # Mocks file upload.
 - ...
+
 
 ## Contributing
 Contributions to pytest-minio-mock are welcome!
