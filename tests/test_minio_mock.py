@@ -1,3 +1,4 @@
+import os
 import sys
 
 import pytest
@@ -493,3 +494,25 @@ def test_stat_object(minio_mock):
         version_id=objects[1].version_id,
     )
     assert object_stat.version_id is None
+
+
+@pytest.mark.FOCUS
+@pytest.mark.REGRESSION
+@pytest.mark.UNIT
+def test_fget_object(minio_mock, tmp_path):
+    client = Minio("http://local.host:9000")
+
+    bucket_name = "new-bucket"
+    client.make_bucket(bucket_name)
+    objects = client.list_objects(bucket_name)
+    assert len(list(objects)) == 0
+
+    client.put_object(bucket_name, "object1", data=b"object1 data", length=12)
+
+    file_path = os.path.join(tmp_path, "object1.dat")
+    client.fget_object(bucket_name, "object1", file_path)
+
+    # folder objects does not exist, fget_object should create it
+
+    file_path = os.path.join(tmp_path, "another_folder", "object1.dat")
+    client.fget_object(bucket_name, "object1", file_path)

@@ -23,6 +23,7 @@ server.
 """
 import copy
 import datetime
+import errno
 import io
 import logging
 import os
@@ -860,6 +861,20 @@ class MockMinioClient:
             request_headers=request_headers,
             extra_query_params=extra_query_params,
         )
+
+        if os.path.isdir(file_path):
+            raise ValueError(f"file {file_path} is a directory")
+
+        # Create top level directory if needed.
+
+        dirname = os.path.dirname(file_path)
+        if dirname:
+            try:
+                os.makedirs(dirname)
+            except OSError as exc:  # Python >2.5
+                if exc.errno != errno.EEXIST:
+                    raise
+
         with open(file_path, "wb") as f:
             f.write(the_object.data)
 
