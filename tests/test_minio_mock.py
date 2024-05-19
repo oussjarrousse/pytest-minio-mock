@@ -1,3 +1,4 @@
+import os
 import sys
 
 import pytest
@@ -5,6 +6,7 @@ import validators
 from minio import Minio
 from minio.commonconfig import ENABLED
 from minio.datatypes import Bucket
+from minio.datatypes import Object
 from minio.error import S3Error
 from minio.versioningconfig import OFF
 from minio.versioningconfig import SUSPENDED
@@ -493,3 +495,34 @@ def test_stat_object(minio_mock):
         version_id=objects[1].version_id,
     )
     assert object_stat.version_id is None
+
+
+@pytest.mark.REGRESSION
+@pytest.mark.UNIT
+def test_fget_object(minio_mock, tmp_path):
+    client = Minio("http://local.host:9000")
+
+    bucket_name = "new-bucket"
+    client.make_bucket(bucket_name)
+    objects = client.list_objects(bucket_name)
+    assert len(list(objects)) == 0
+
+    client.put_object(bucket_name, "object1", data=b"object1 data", length=12)
+
+    file_path = tmp_path  # should raise a Value error
+    with pytest.raises(ValueError):
+        _ = client.fget_object(bucket_name, "object1", file_path)
+
+    file_path = os.path.join(tmp_path, "object1.dat")
+    stat = client.fget_object(bucket_name, "object1", file_path)
+    assert isinstance(stat, Object)
+
+    # folder objects does not exist, fget_object should create it
+    file_path = os.path.join(tmp_path, "another_folder", "object1.dat")
+    stat = client.fget_object(bucket_name, "object1", file_path)
+    assert isinstance(stat, Object)
+
+    # folder objects does not exist, fget_object should create it
+    file_path = os.path.join(tmp_path, "another_folder", "object1.dat")
+    stat = client.fget_object(bucket_name, "object1", file_path)
+    assert isinstance(stat, Object)

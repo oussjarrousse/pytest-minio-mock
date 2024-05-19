@@ -23,6 +23,7 @@ server.
 """
 import copy
 import datetime
+import errno
 import io
 import logging
 import os
@@ -821,7 +822,7 @@ class MockMinioClient:
         object_name,
         file_path,
         request_headers=None,
-        sse=None,
+        ssec=None,
         version_id=None,
         extra_query_params=None,
     ):
@@ -851,17 +852,42 @@ class MockMinioClient:
             IOError: If there's an issue writing to the specified file path.
 
         Returns:
-            None: The method writes the object's data to a file and has no return value.
+            Object: Stat of the object as Object.
         """
+
+        stat = self.stat_object(
+            bucket_name,
+            object_name,
+            ssec,
+            version_id,
+        )
+
         the_object = self.get_object(
             bucket_name,
             object_name,
-            version_id=version_id,
             request_headers=request_headers,
+            ssec=ssec,
+            version_id=version_id,
             extra_query_params=extra_query_params,
         )
+
+        if os.path.isdir(file_path):
+            raise ValueError(f"file {file_path} is a directory")
+
+        # Create top level directory if needed.
+
+        dirname = os.path.dirname(file_path)
+        if dirname:
+            try:
+                os.makedirs(dirname)
+            except OSError as exc:  # Python >2.5
+                if exc.errno != errno.EEXIST:
+                    raise
+
         with open(file_path, "wb") as f:
             f.write(the_object.data)
+
+        return stat
 
     def get_object(
         self,
