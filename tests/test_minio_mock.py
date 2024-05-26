@@ -83,7 +83,7 @@ def test_remove_bucket(minio_mock):
 
 @pytest.mark.API
 @pytest.mark.FUNC
-def test_putting_and_removing_objects_no_versionning(minio_mock):
+def test_putting_and_removing_objects_no_versioning(minio_mock):
     # simple thing
     bucket_name = "test-bucket"
     object_name = "test-object"
@@ -110,7 +110,8 @@ def test_putting_and_removing_objects_no_versionning(minio_mock):
     # test retrieving object after it has been removed
     with pytest.raises(S3Error) as error:
         _ = client.get_object(bucket_name, object_name)
-    assert "The specified key does not exist" in str(error.value)
+    assert error.value.message == "The specified key does not exist."
+    assert error.value.code == "NoSuchKey"
 
 
 @pytest.mark.API
