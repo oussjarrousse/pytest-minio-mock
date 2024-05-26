@@ -18,10 +18,10 @@ setup(
     author="Oussama Jarrousse",
     author_email="oussama@jarrousse.org",
     description="A pytest plugin for mocking Minio S3 interactions",
-    long_description=open("README.md").read(),
+    long_description=open("README.md", encoding="utf-8").read(),
     keywords="pytest minio mock",
     extras_require={"dev": ["pre-commit", "tox"]},
-    version="0.4.14",
+    version="0.4.15",
     long_description_content_type="text/markdown",
     classifiers=[
         "Framework :: Pytest",

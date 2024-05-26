@@ -503,7 +503,7 @@ class MockMinioBucket:
                 request_id=None,
                 host_id=None,
                 response="mocked_response",
-                code=404,
+                code="NoSuchKey",
                 bucket_name=self.bucket_name,
                 object_name=object_name,
             ) from exc
