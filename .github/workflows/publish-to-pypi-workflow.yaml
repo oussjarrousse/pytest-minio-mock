@@ -55,5 +55,5 @@ jobs:
               uses: pypa/gh-action-pypi-publish@release/v1
             - name: Purge Badge Cache
               run: |
-                  curl -X PURGE https://camo.githubusercontent.com/6dc4260b2f6a92fe29281e3d2ee7647719a3b53e481f110a2ccd39bd932d8788/68747470733a2f2f62616467652e667572792e696f2f70792f7079746573742d6d696e696f2d6d6f636b2e737667
+                  curl -X PURGE https://camo.githubusercontent.com/6dc4260b2f6a92fe29281e3d2ee7647719a3b53e481f110a2ccd39bd932d8788/68747470733a2f2f62616467652e667572792e696f2f70792f7079746573742d6d696e696f2d6d6f636b2e737667 \
                   && curl -X PURGE https://pypi-camo.freetls.fastly.net/010fb347be739eaadc5dd44b84f390ddb97e62d6/68747470733a2f2f62616467652e667572792e696f2f70792f7079746573742d6d696e696f2d6d6f636b2e737667
