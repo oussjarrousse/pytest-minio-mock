@@ -763,6 +763,7 @@ class MockMinioClient:
         _region (str): The region of the server (not used in mock).
         _http_client: The HTTP client to use (not used in mock).
         _credentials: The credentials object (not used in mock).
+        _cert_check (bool): Whether to check certificates (not used in mock).
         buckets (dict): A dictionary to hold mock bucket data.
     """
 
@@ -776,6 +777,7 @@ class MockMinioClient:
         region=None,
         http_client=None,
         credentials=None,
+        cert_check=True,
     ):
         """
         Initialize the MockMinioClient with configuration similar to the real client.
@@ -789,6 +791,7 @@ class MockMinioClient:
             region (str, optional): The region of the server.
             http_client (optional): The HTTP client to use. Defaults to None.
             credentials (optional): The credentials object. Defaults to None.
+            cert_check (optional): Whether to check certificates. Defaults to True.
         """
         self._base_url = endpoint
         self._access_key = access_key
@@ -798,6 +801,7 @@ class MockMinioClient:
         self._region = region
         self._http_client = http_client
         self._credentials = credentials
+        self._cert_check = cert_check
         self.buckets = {}
 
     def connect(self, servers):
