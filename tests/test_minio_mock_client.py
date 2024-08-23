@@ -19,6 +19,7 @@ class TestsMockMinioClient:
         assert client._region == None
         assert client._http_client == None
         assert client._credentials == None
+        assert client._cert_check is True
 
     @pytest.mark.UNIT
     def test_mock_minio_client_init_with_all_params(self):
@@ -30,6 +31,7 @@ class TestsMockMinioClient:
         region = "us-east-1"
         http_client = "mock_http_client"
         credentials = "mock_credentials"
+        cert_check = False
 
         client = MockMinioClient(
             endpoint,
@@ -40,6 +42,7 @@ class TestsMockMinioClient:
             region=region,
             http_client=http_client,
             credentials=credentials,
+            cert_check=cert_check,
         )
 
         assert client._base_url == endpoint, "Endpoint should be stored correctly"
@@ -56,6 +59,7 @@ class TestsMockMinioClient:
         assert (
             client._credentials == credentials
         ), "Credentials should be stored correctly"
+        assert client._cert_check == cert_check
 
     @pytest.mark.UNIT
     def test_mock_minio_client_init_error_handling(self):
