@@ -1453,5 +1453,9 @@ def minio_mock(mocker, minio_mock_servers):
         client.connect(minio_mock_servers)
         return client
 
-    patched = mocker.patch.object(Minio, "__new__", new=minio_mock_init)
-    yield patched
+    patched = mocker.patch.object(Minio, "__new__", new=minio_mock_init, create=True)
+    try:
+        yield patched
+        mocker.stop(patched)
+    finally:
+        Minio.__new__ = lambda cls, *args, **kw: object.__new__(cls)
