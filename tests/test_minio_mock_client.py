@@ -7,11 +7,30 @@ from pytest_minio_mock.plugin import MockMinioClient
 
 @pytest.mark.UNIT
 class TestsMockMinioClient:
+    @pytest.mark.parametrize("is_secure", [True, False])
+    @pytest.mark.UNIT
+    def test_mock_minio_client_init_without_endpoint_schema_and_with_minimal_parameters(
+        self, is_secure: bool
+    ):
+        endpoint = "localhost:9000"
+        client = MockMinioClient(endpoint, secure=is_secure)
+
+        base_url_schema = "https" if is_secure else "http"
+        assert client._base_url == f"{base_url_schema}://{endpoint}"
+        assert client._access_key == None
+        assert client._secret_key == None
+        assert client._session_token == None
+        assert client._secure is is_secure
+        assert client._region == None
+        assert client._http_client == None
+        assert client._credentials == None
+        assert client._cert_check is True
+
     @pytest.mark.UNIT
     def test_mock_minio_client_init_with_minimal_parameters(self):
         endpoint = "https://localhost:9000"
         client = MockMinioClient(endpoint)
-        assert client._base_url.url == endpoint
+        assert client._base_url == endpoint
         assert client._access_key == None
         assert client._secret_key == None
         assert client._session_token == None
@@ -45,7 +64,7 @@ class TestsMockMinioClient:
             cert_check=cert_check,
         )
 
-        assert client._base_url.url == endpoint, "Endpoint should be stored correctly"
+        assert client._base_url == endpoint, "Endpoint should be stored correctly"
         assert client._access_key == access_key, "Access key should be stored correctly"
         assert client._secret_key == secret_key, "Secret key should be stored correctly"
         assert (
