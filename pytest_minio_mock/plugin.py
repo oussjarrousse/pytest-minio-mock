@@ -820,7 +820,7 @@ class MockMinioClient:
         if not self._base_url:
             raise ValueError("base_url is empty")
         if not validators.hostname(self._base_url) and not validators.url(
-            self._base_url
+            self._base_url, simple_host=True
         ):
             raise ValueError(f"base_url {self._base_url} is not valid")
 

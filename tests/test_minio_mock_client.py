@@ -86,3 +86,17 @@ class TestsMockMinioClient:
             TypeError, match="missing 1 required positional argument: 'endpoint'"
         ):
             client = MockMinioClient()  # not passing endpoint should raise an error
+
+    @pytest.mark.parametrize(
+        "endpoint",
+        [
+            "http://localhost:9000",
+            "https://localhost:9000",
+            "localhost:9000",
+            "any-endpoint.local",
+        ],
+    )
+    @pytest.mark.UNIT
+    def test_mock_minio_client_health_check(self, endpoint: str):
+        client = MockMinioClient(endpoint)
+        assert client._health_check() is None
