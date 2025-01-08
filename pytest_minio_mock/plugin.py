@@ -41,6 +41,7 @@ from minio.versioningconfig import SUSPENDED
 from minio.versioningconfig import VersioningConfig
 from urllib3.connection import HTTPConnection
 from urllib3.response import HTTPResponse
+from urllib3.util.url import parse_url
 
 
 # Define a simple class or named tuple to hold object info
@@ -793,7 +794,9 @@ class MockMinioClient:
             credentials (optional): The credentials object. Defaults to None.
             cert_check (optional): Whether to check certificates. Defaults to True.
         """
-        self._base_url = endpoint
+        self._base_url = parse_url(endpoint)._replace(
+            scheme="https" if secure else "http"
+        )
         self._access_key = access_key
         self._secret_key = secret_key
         self._session_token = session_token
@@ -810,13 +813,13 @@ class MockMinioClient:
         This is necessary to maintain persistency of objects across multiple initiations
         of Minio objects with the same connection string
         """
-        self.buckets = servers.connect(self._base_url)
+        self.buckets = servers.connect(self._base_url.url)
 
     def _health_check(self):
         if not self._base_url:
             raise ValueError("base_url is empty")
-        if not validators.hostname(self._base_url) and not validators.url(
-            self._base_url
+        if not validators.hostname(self._base_url.url) and not validators.url(
+            self._base_url.url
         ):
             raise ValueError(f"base_url {self._base_url} is not valid")
 

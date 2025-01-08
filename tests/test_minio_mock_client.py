@@ -9,9 +9,9 @@ from pytest_minio_mock.plugin import MockMinioClient
 class TestsMockMinioClient:
     @pytest.mark.UNIT
     def test_mock_minio_client_init_with_minimal_parameters(self):
-        endpoint = "http://localhost:9000"
+        endpoint = "https://localhost:9000"
         client = MockMinioClient(endpoint)
-        assert client._base_url == endpoint
+        assert client._base_url.url == endpoint
         assert client._access_key == None
         assert client._secret_key == None
         assert client._session_token == None
@@ -45,7 +45,7 @@ class TestsMockMinioClient:
             cert_check=cert_check,
         )
 
-        assert client._base_url == endpoint, "Endpoint should be stored correctly"
+        assert client._base_url.url == endpoint, "Endpoint should be stored correctly"
         assert client._access_key == access_key, "Access key should be stored correctly"
         assert client._secret_key == secret_key, "Secret key should be stored correctly"
         assert (
