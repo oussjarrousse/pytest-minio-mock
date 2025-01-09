@@ -17,13 +17,13 @@ class TestsMockMinioClient:
 
         base_url_schema = "https" if is_secure else "http"
         assert client._base_url == f"{base_url_schema}://{endpoint}"
-        assert client._access_key == None
-        assert client._secret_key == None
-        assert client._session_token == None
+        assert client._access_key is None
+        assert client._secret_key is None
+        assert client._session_token is None
         assert client._secure is is_secure
-        assert client._region == None
-        assert client._http_client == None
-        assert client._credentials == None
+        assert client._region is None
+        assert client._http_client is None
+        assert client._credentials is None
         assert client._cert_check is True
 
     @pytest.mark.UNIT
@@ -31,13 +31,13 @@ class TestsMockMinioClient:
         endpoint = "https://localhost:9000"
         client = MockMinioClient(endpoint)
         assert client._base_url == endpoint
-        assert client._access_key == None
-        assert client._secret_key == None
-        assert client._session_token == None
+        assert client._access_key is None
+        assert client._secret_key is None
+        assert client._session_token is None
         assert client._secure is True
-        assert client._region == None
-        assert client._http_client == None
-        assert client._credentials == None
+        assert client._region is None
+        assert client._http_client is None
+        assert client._credentials is None
         assert client._cert_check is True
 
     @pytest.mark.UNIT
@@ -85,7 +85,7 @@ class TestsMockMinioClient:
         with pytest.raises(
             TypeError, match="missing 1 required positional argument: 'endpoint'"
         ):
-            client = MockMinioClient()  # not passing endpoint should raise an error
+            MockMinioClient()  # not passing endpoint should raise an error
 
     @pytest.mark.parametrize(
         "endpoint",

@@ -267,7 +267,7 @@ class MockMinioObject:
                 object_name=self.object_name,
             )
 
-        # If version == None, give version_id a value
+        # If version is None, give version_id a value
         if not version_id:
             if not self._versions:
                 raise S3Error(
@@ -547,7 +547,7 @@ class MockMinioBucket:
 
         try:
             the_object = self.objects[object_name]
-        except KeyError as e:
+        except KeyError:
             raise S3Error(
                 message="Object does not exist",
                 resource=f"/{self.bucket_name}/{object_name}",
@@ -1436,30 +1436,24 @@ def minio_mock_servers():
 
 
 @pytest.fixture
-def minio_mock(mocker, minio_mock_servers):
+def minio_mock(minio_mock_servers):
     """
     Pytest fixture to patch the Minio client with a mock.
 
     Args:
-        mocker: The pytest-mock fixture.
         minio_mock_servers: The fixture providing a Servers instance.
 
     Yields:
         MockMinioClient: The patched Minio client.
     """
 
-    def minio_mock_init(
-        cls,
-        *args,
-        **kwargs,
-    ):
+    def minio_mock_init(cls, *args, **kwargs):
         client = MockMinioClient(*args, **kwargs)
         client.connect(minio_mock_servers)
         return client
 
-    patched = mocker.patch.object(Minio, "__new__", new=minio_mock_init, create=True)
+    Minio.__new__ = minio_mock_init
     try:
-        yield patched
-        mocker.stop(patched)
+        yield Minio
     finally:
         Minio.__new__ = lambda cls, *args, **kw: object.__new__(cls)
