@@ -465,7 +465,9 @@ def test_fget_object(minio_mock, tmp_path):
     objects = client.list_objects(bucket_name)
     assert len(list(objects)) == 0
 
-    client.put_object(bucket_name, "object1", data=b"object1 data", length=12)
+    # Test initial put and get with content verification
+    initial_content = b"object1 data"
+    client.put_object(bucket_name, "object1", data=initial_content, length=len(initial_content))
 
     file_path = tmp_path  # should raise a Value error
     with pytest.raises(ValueError):
@@ -474,13 +476,41 @@ def test_fget_object(minio_mock, tmp_path):
     file_path = os.path.join(tmp_path, "object1.dat")
     stat = client.fget_object(bucket_name, "object1", file_path)
     assert isinstance(stat, Object)
+    with open(file_path, 'rb') as f:
+        downloaded_content = f.read()
+    assert downloaded_content == initial_content, "Downloaded content should match the original"
+
+    # Test updating content and verifying it matches
+    new_content = b"updated object1 data"
+    client.put_object(bucket_name, "object1", data=new_content, length=len(new_content))
+    
+    new_file_path = os.path.join(tmp_path, "object1_new.dat")
+    stat = client.fget_object(bucket_name, "object1", new_file_path)
+    assert isinstance(stat, Object)
+    with open(new_file_path, 'rb') as f:
+        downloaded_content = f.read()
+    assert downloaded_content == new_content, "Downloaded content should match after update"
+
+    # Test fput_object and fget_object content verification
+    test_file_path = os.path.join(tmp_path, "test_upload.dat")
+    with open(test_file_path, 'wb') as f:
+        f.write(b"test file content")
+    
+    client.fput_object(bucket_name, "test_object", test_file_path)
+    download_path = os.path.join(tmp_path, "test_download.dat")
+    stat = client.fget_object(bucket_name, "test_object", download_path)
+    assert isinstance(stat, Object)
+    
+    with open(test_file_path, 'rb') as f:
+        original_content = f.read()
+    with open(download_path, 'rb') as f:
+        downloaded_content = f.read()
+    assert downloaded_content == original_content, "Content should match after fput and fget"
 
     # folder objects does not exist, fget_object should create it
     file_path = os.path.join(tmp_path, "another_folder", "object1.dat")
     stat = client.fget_object(bucket_name, "object1", file_path)
     assert isinstance(stat, Object)
-
-    # folder objects does not exist, fget_object should create it
-    file_path = os.path.join(tmp_path, "another_folder", "object1.dat")
-    stat = client.fget_object(bucket_name, "object1", file_path)
-    assert isinstance(stat, Object)
+    with open(file_path, 'rb') as f:
+        downloaded_content = f.read()
+    assert downloaded_content == new_content, "Content should match in new folder"
