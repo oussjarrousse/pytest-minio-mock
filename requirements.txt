@@ -1,5 +1,4 @@
 minio
 pytest
 pytest-mock
-pytest-cov
 validators

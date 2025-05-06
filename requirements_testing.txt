@@ -1,3 +1,0 @@
-tox
-pylint
-pylint-pytest

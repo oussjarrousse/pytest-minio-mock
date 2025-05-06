@@ -1,0 +1,6 @@
+tox
+pytest
+pytest-cov
+pylint
+pylint-pytest
+validators
