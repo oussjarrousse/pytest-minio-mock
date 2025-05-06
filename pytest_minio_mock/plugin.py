@@ -1002,7 +1002,7 @@ class MockMinioClient:
             return self.put_object(
                 bucket_name,
                 object_name,
-                file_data,
+                file_data.read(),
                 length=file_size,
                 content_type="application/octet-stream",
                 metadata=metadata,
