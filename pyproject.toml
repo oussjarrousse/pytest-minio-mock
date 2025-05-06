@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pytest-minio-mock"
+description = "A pytest plugin for mocking Minio S3 interactions"
+dynamic = ["version"]
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Oussama Jarrousse", email = "oussama@jarrousse.org"},
+]
+keywords = ["pytest", "minio", "mock"]
+classifiers = [
+    "Framework :: Pytest",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Testing"
+]
+dependencies = [
+    "pytest>=5.0.0",
+    "minio",
+    "pytest-mock",
+    "validators"
+]
+
+[project.urls]
+Source = "https://github.com/oussjarrousse/pytest-minio-mock/"
+Tracker = "https://github.com/oussjarrousse/pytest-minio-mock/issues"
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+    "tox"
+]
+
+[tool.setuptools.packages.find]
+exclude = ["tests"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pytest_minio_mock.__version__"}
+
+[project.entry-points."pytest11"]
+pytest_minio_mock = "pytest_minio_mock.plugin"

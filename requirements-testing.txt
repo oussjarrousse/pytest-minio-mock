@@ -1,3 +1,4 @@
 tox
 pylint
 pylint-pytest
+pytest-cov
