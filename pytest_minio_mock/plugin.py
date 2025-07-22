@@ -74,7 +74,7 @@ class MockMinioObjectVersion:
         self._data = data
         self._version_id = version_id
         self._is_delete_marker = is_delete_marker
-        self._last_modified = datetime.datetime.utcnow()
+        self._last_modified = datetime.datetime.now(datetime.UTC)
         self._is_latest = is_latest
 
     @property
