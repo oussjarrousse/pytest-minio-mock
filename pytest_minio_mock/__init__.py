@@ -17,7 +17,7 @@ For more information and usage examples, please refer to the project's README.md
 
 __title__ = "pytest-minio-mock"
 __description__ = "A pytest plugin for mocking Minio S3 interactions"
-__version__ = "0.4.18"
+__version__ = "0.4.19"
 __status__ = "Production"
 __license__ = "MIT"
 __author__ = "Oussama Jarrousse"
@@ -30,5 +30,6 @@ __credits__ = [
     "@KelvinHong",
     "Tomas Kazmar",
     "Ryan Dailey",
-    "@bernd-k1337"
+    "@bernd-k1337",
+    "@SlowMo24",
 ]
